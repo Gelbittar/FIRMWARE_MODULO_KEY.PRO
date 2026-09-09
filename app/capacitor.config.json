@@ -1,0 +1,8 @@
+{
+  "appId": "com.geylca.access",
+  "appName": "GEYLCA Access",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  }
+}

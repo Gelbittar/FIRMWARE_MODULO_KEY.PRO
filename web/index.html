@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEYLCA Access Control</title>
+<script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1b2a;--card:#1b263b;--accent:#00b4d8;--text:#caf0f8;--warn:#ffd166;--danger:#ef233c;--success:#06d6a0;--border:#415a77;--card2:#253548;--input-bg:#0d1b2a}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+a{color:var(--accent)}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+header{background:var(--card);border-bottom:2px solid var(--accent);padding:0 1.2rem;display:flex;align-items:center;height:56px;gap:1rem;flex-shrink:0;z-index:100}
+header .logo{font-size:1.15rem;font-weight:700;color:var(--accent);letter-spacing:1px;white-space:nowrap}
+header .device-label{font-size:.85rem;color:var(--text);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.conn-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.conn-dot.on{background:var(--success);box-shadow:0 0 8px var(--success)}
+.conn-dot.off{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.conn-dot.connecting{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+header .spacer{flex:1}
+#btnDisconnect{background:transparent;border:1px solid var(--border);color:var(--text);padding:.35rem .8rem;border-radius:4px;cursor:pointer;font-size:.8rem;transition:.2s}
+#btnDisconnect:hover{border-color:var(--danger);color:var(--danger)}
+nav{background:var(--card);display:flex;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+nav button{background:transparent;border:none;color:var(--text);opacity:.6;padding:.7rem 1.2rem;font-size:.85rem;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
+nav button:hover{opacity:.9}
+nav button.active{opacity:1;border-bottom-color:var(--accent);color:var(--accent)}
+main{flex:1;overflow:auto;padding:1rem;max-width:1200px;width:100%;margin:0 auto}
+.tab{display:none}
+.tab.active{display:block}
+.subnav{display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap}
+.subnav button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:.5rem .95rem;border-radius:6px;font-size:.82rem;cursor:pointer}
+.subnav button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.login-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:1rem}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2rem;width:100%;max-width:400px}
+.login-box h2{color:var(--accent);margin-bottom:1.5rem;text-align:center;font-size:1.3rem}
+.login-box label{display:block;margin-bottom:.3rem;font-size:.8rem;color:var(--text);opacity:.7}
+.login-box input,.login-box select{width:100%;padding:.55rem .7rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);font-size:.9rem;margin-bottom:1rem;outline:none;transition:.2s}
+.login-box input:focus,.login-box select:focus{border-color:var(--accent)}
+.login-box select option{background:var(--card);color:var(--text)}
+.login-box button{width:100%;padding:.65rem;background:var(--accent);color:#000;border:none;border-radius:4px;font-size:.95rem;font-weight:600;cursor:pointer;transition:.2s}
+.login-box button:hover{opacity:.85}
+.login-box .err{color:var(--danger);font-size:.8rem;margin-bottom:.8rem;display:none}
+.login-box textarea{width:100%;padding:.55rem .7rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);font-size:.75rem;margin-bottom:.6rem;outline:none;font-family:monospace;resize:vertical;min-height:54px}
+.login-box textarea:focus{border-color:var(--accent)}
+.login-box .accent{background:var(--accent);color:#000;border:none;border-radius:4px;padding:.55rem;width:100%;font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:.2rem}
+.login-box .accent:hover{filter:brightness(1.15)}
+.login-divider{display:flex;align-items:center;margin:.8rem 0;color:var(--text);opacity:.45;font-size:.75rem;gap:.6rem}
+.login-divider::before,.login-divider::after{content:"";flex:1;height:1px;background:var(--border)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem;margin-bottom:1.2rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1rem;text-align:center}
+.stat-card .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;opacity:.6;margin-bottom:.3rem}
+.stat-card .value{font-size:1.5rem;font-weight:700;color:var(--accent)}
+.stat-card .value.ok{color:var(--success)}
+.stat-card .value.warn{color:var(--warn)}
+.stat-card .value.err{color:var(--danger)}
+.big-btn{display:block;width:100%;max-width:320px;margin:1rem auto;padding:1rem;background:var(--success);color:#000;border:none;border-radius:6px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:.15s;text-transform:uppercase;letter-spacing:1px}
+.big-btn:hover{filter:brightness(1.15)}
+.big-btn:active{transform:scale(.97)}
+.big-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none}
+.btn{padding:.5rem 1rem;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:4px;cursor:pointer;font-size:.82rem;transition:.2s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.danger:hover{background:var(--danger);color:#fff}
+.btn.accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.btn.accent:hover{filter:brightness(1.15)}
+.btn.small{padding:.3rem .6rem;font-size:.75rem}
+.btn-row{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem}
+.card h3{color:var(--accent);font-size:.9rem;margin-bottom:.7rem;text-transform:uppercase;letter-spacing:.5px}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{text-align:left;padding:.5rem;border-bottom:1px solid var(--border);color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+td{padding:.45rem .5rem;border-bottom:1px solid rgba(65,90,119,.3);vertical-align:middle}
+tr:hover td{background:rgba(0,180,216,.04)}
+.table-wrap{overflow-x:auto}
+.filter-bar{display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap}
+.filter-bar input{flex:1;min-width:140px;padding:.45rem .6rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);font-size:.85rem;outline:none}
+.filter-bar input:focus{border-color:var(--accent)}
+.pagination{display:flex;align-items:center;justify-content:center;gap:.8rem;margin-top:.8rem;font-size:.85rem}
+.pagination button{padding:.3rem .7rem}
+.form-row{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.8rem}
+.form-row .field{display:flex;flex-direction:column;gap:.2rem;flex:1;min-width:120px}
+.form-row .field label{font-size:.72rem;text-transform:uppercase;opacity:.6}
+.form-row .field input,.form-row .field select{padding:.45rem .6rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);font-size:.85rem;outline:none}
+.form-row .field input:focus,.form-row .field select:focus{border-color:var(--accent)}
+.toast-container{position:fixed;top:66px;right:1rem;z-index:1000;display:flex;flex-direction:column;gap:.4rem;pointer-events:none}
+.toast{padding:.6rem 1rem;border-radius:4px;font-size:.82rem;color:#000;font-weight:600;pointer-events:auto;animation:slideIn .3s;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger);color:#fff}
+.toast.info{background:var(--accent)}
+.toast.warn{background:var(--warn)}
+@keyframes slideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:.4rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.5rem;max-width:400px;width:100%}
+.modal h3{color:var(--warn);margin-bottom:.8rem;font-size:1rem}
+.modal p{font-size:.85rem;margin-bottom:1rem;opacity:.8}
+.modal input{width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:1rem;font-size:.9rem;outline:none}
+.modal .btn-row{justify-content:flex-end}
+.status-tag{display:inline-block;padding:.15rem .45rem;border-radius:3px;font-size:.72rem;font-weight:600;text-transform:uppercase}
+.status-tag.active{background:rgba(6,214,160,.15);color:var(--success)}
+.status-tag.suspended{background:rgba(239,35,60,.15);color:var(--danger)}
+.status-tag.online{background:rgba(6,214,160,.15);color:var(--success)}
+.status-tag.offline{background:rgba(239,35,60,.15);color:var(--danger)}
+.status-tag.wait{background:rgba(255,209,102,.15);color:var(--warn)}
+#moduleBadge{font-size:.72rem;letter-spacing:.5px;flex-shrink:0}
+.console-out{background:#07111c;border:1px solid var(--border);border-radius:6px;padding:.6rem;height:60vh;overflow-y:auto;font-family:monospace;font-size:.74rem;line-height:1.55}
+.console-line{display:flex;gap:.6rem;padding:.14rem 0;border-bottom:1px solid rgba(65,90,119,.15);align-items:baseline}
+.console-time{color:var(--border);flex-shrink:0;font-size:.68rem}
+.console-dir{font-weight:700;flex-shrink:0;width:30px;font-size:.68rem}
+.console-dir.tx{color:var(--warn)}
+.console-dir.rx{color:var(--success)}
+.console-topic{color:var(--accent);flex-shrink:0;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.console-payload{color:var(--text);word-break:break-all}
+.console-toolbar{display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;flex-wrap:wrap}
+.console-toolbar .console-count{margin-left:auto;font-size:.72rem;opacity:.6}
+.console-chk{font-size:.8rem;display:flex;align-items:center;gap:.35rem}
+.console-empty{opacity:.4;text-align:center;padding:1.2rem}
+.login-success{margin-top:.6rem;text-align:center;font-size:.8rem;color:var(--success);display:none}
+.pair-sec{color:var(--warn);font-family:monospace;letter-spacing:1px}
+.learn-wait{background:rgba(255,209,102,.1);border:1px dashed var(--warn);padding:.8rem;border-radius:6px;text-align:center;color:var(--warn);font-size:.9rem;animation:pulse 1.5s infinite}
+.toast-container.hidden{display:none}
+@media(max-width:640px){
+  nav{flex-wrap:nowrap}
+  nav button{padding:.6rem .8rem;font-size:.78rem}
+  header .device-label{max-width:100px}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .form-row{flex-direction:column}
+  .form-row .field{min-width:100%}
+}
+.empty-msg{text-align:center;padding:2rem;color:var(--text);opacity:.4;font-size:.9rem}
+.master-actions{display:flex;flex-wrap:wrap;gap:.25rem}
+.master-actions .btn{font-size:.66rem;padding:.22rem .4rem;margin:0}
+.master-cell-id{font-size:.68rem;opacity:.6;font-family:monospace}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <h2>GEYLCA Access Control</h2>
+    <div id="loginErr" class="err"></div>
+    <label for="rawDataInput">Pegar Data Cruda del Módulo (más rápido)</label>
+    <textarea id="rawDataInput" rows="2" placeholder='{"device_id":"modulo01","secret":"AB12...DEF"}'></textarea>
+    <button id="btnParseRaw" class="accent">Cargar Data Cruda</button>
+    <div class="login-divider"><span>o ingrese manualmente</span></div>
+    <label for="loginDeviceId">Device ID</label>
+    <input id="loginDeviceId" type="text" placeholder="e.g. geylca_001" autocomplete="off">
+    <label for="loginSecret">Clave del Rol (HMAC secret)</label>
+    <input id="loginSecret" type="password" placeholder="Clave para el rol seleccionado" autocomplete="off">
+    <label for="loginRole">Role</label>
+    <select id="loginRole">
+      <option value="master">Master</option>
+      <option value="admin">Admin</option>
+      <option value="installer">Installer</option>
+    </select>
+    <button id="loginBtn">Connect</button>
+  </div>
+</div>
+
+<div id="appContainer" style="display:none;flex-direction:column;min-height:100vh">
+  <header>
+    <span class="logo">GEYLCA</span>
+    <span id="headerDevice" class="device-label"></span>
+<span class="spacer"></span>
+    <span id="moduleBadge" class="status-tag wait">VERIFICANDO</span>
+    <span id="connStatus" class="conn-dot off" title="Desconectado"></span>
+    <button id="btnDisconnect">Disconnect</button>
+  </header>
+
+  <nav id="tabNav">
+    <button class="active" data-tab="tabDashboard">Dashboard</button>
+    <button data-tab="tabSlots">Slots</button>
+    <button data-tab="tabConfig" id="navConfig" style="display:none">Config</button>
+    <button data-tab="tabPairing" id="navPairing" style="display:none">Pairing</button>
+    <button data-tab="tabLogs">Logs</button>
+    <button data-tab="tabConsole">Consola</button>
+    <button data-tab="tabMaster" id="navMaster" style="display:none">Master</button>
+  </nav>
+
+  <main>
+    <!-- Dashboard -->
+    <div id="tabDashboard" class="tab active">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Broker MQTT</div><div class="value" id="statConn">OFFLINE</div></div>
+        <div class="stat-card"><div class="label">Total Slots</div><div class="value" id="statTotal">--</div></div>
+        <div class="stat-card"><div class="label">Libres</div><div class="value" id="statFree">--</div></div>
+        <div class="stat-card"><div class="label">Modo Seguridad</div><div class="value" id="statSecMode">--</div></div>
+      </div>
+      <button class="big-btn" id="btnOpenDoor" disabled>ABRIR PUERTA</button>
+      <div class="btn-row" style="justify-content:center">
+        <button class="btn accent" id="btnRefreshStatus" disabled>Actualizar Estado</button>
+      </div>
+      <div class="card">
+        <h3>Eventos Recientes</h3>
+        <div class="table-wrap">
+          <table><thead><tr><th>Tiempo</th><th>Evento</th><th>Detalle</th></tr></thead>
+          <tbody id="eventTableBody"><tr><td colspan="3" class="empty-msg">Esperando eventos...</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slots -->
+    <div id="tabSlots" class="tab">
+      <div class="subnav">
+        <button class="active" data-sub="slotsView">Casillas</button>
+        <button data-sub="progView">Programador</button>
+      </div>
+
+      <div id="slotsView" class="subview">
+        <div class="card">
+          <h3>Agregar / Editar Key</h3>
+          <div id="learnWaitBox" class="learn-wait" style="display:none">Esperando presentación de llave...</div>
+          <div class="form-row" id="addKeyForm">
+            <div class="field"><label>Slot</label><input id="slotNum" type="number" placeholder="Auto (libre)" min="1" max="4000"></div>
+            <div class="field"><label>Key (hex)</label><input id="slotKey" type="text" placeholder="8 o 16 hex chars" maxlength="16"></div>
+            <div class="field"><label>Apartamento</label><input id="slotApto" type="text" placeholder="Ej: 4B"></div>
+            <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetKey" disabled>Guardar</button></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="btnLearnKey" disabled>Learn Key</button>
+            <button class="btn" id="btnFindFreeSlot" disabled>Buscar Casilla Libre</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Slots</h3>
+          <div class="filter-bar">
+            <input id="slotFilter" type="text" placeholder="Buscar por apartamento, slot o key...">
+            <select id="slotOrder" title="Ordenar">
+              <option value="slot-asc">Slot &uarr;</option>
+              <option value="slot-desc">Slot &darr;</option>
+              <option value="apto-asc">Apto A-Z</option>
+              <option value="apto-desc">Apto Z-A</option>
+            </select>
+            <button class="btn" id="btnQuerySlot" disabled>Consultar Slots</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Slot</th><th>Key (hex)</th><th>Apartamento</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="slotTableBody"><tr><td colspan="5" class="empty-msg">Presione "Consultar Slots" para cargar datos</td></tr></tbody></table>
+          </div>
+          <div class="pagination">
+            <button class="btn small" id="slotPrev" disabled>&laquo; Ant</button>
+            <span id="slotPageInfo">Página 1</span>
+            <button class="btn small" id="slotNext" disabled>Sig &raquo;</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="progView" class="subview" style="display:none">
+        <div class="card">
+          <h3>Programador Inalámbrico V1.0</h3>
+          <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Escanea los programadores activos (módulo activo: <span id="progTargetModule" style="font-weight:700">--</span>). Selecciona uno y pulsa "Leer Llave": el código de la iButton quedará cargado en el campo "Key (hex)" de la opción Casillas para guardarlo.</p>
+          <div class="btn-row">
+            <button class="btn accent" id="btnScanProgs" disabled>Escanear Programadores</button>
+            <span id="progScanInfo" style="font-size:.78rem;opacity:.7;align-self:center"></span>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Programador</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody id="progTableBody"><tr><td colspan="3" class="empty-msg">Presione "Escanear Programadores"</td></tr></tbody></table>
+          </div>
+        </div>
+        <div class="card" id="progReadBox" style="display:none">
+          <h3>Captura de Llave</h3>
+          <div id="progReadStatus" style="font-size:.85rem;margin-bottom:.5rem"></div>
+          <div class="btn-row">
+            <button class="btn accent" id="btnProgRead">Leer Llave</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config (Master only) -->
+    <div id="tabConfig" class="tab">
+      <div class="card">
+        <h3>Relay Time</h3>
+        <div class="form-row">
+          <div class="field"><label>Segundos</label><input id="relayTime" type="number" min="1" max="30" value="3"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetRelay" disabled>Guardar</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Modo de Seguridad</h3>
+        <div class="form-row">
+          <div class="field"><label>Tipo</label>
+            <select id="secModeSelect"><option value="4">4 bytes (standard)</option><option value="8">8 bytes (extended)</option></select>
+          </div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetSecMode" disabled>Guardar</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Claves de Roles</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Cada rol usa una clave distinta como secreto HMAC. El rol instalador solo puede programar llaves; el admin además administra slots; el master tiene acceso total.</p>
+        <div class="form-row">
+          <div class="field"><label>Clave Instalador</label><input id="installerKeyInput" type="text" placeholder="Mínimo 16 caracteres"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn small" id="btnGenInstallerKey">Generar</button></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetInstallerKey" disabled>Guardar</button></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Clave Admin</label><input id="adminKeyInput" type="text" placeholder="Mínimo 16 caracteres"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn small" id="btnGenAdminKey">Generar</button></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetAdminKey" disabled>Guardar</button></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btnGetRoleKeys">Mostrar claves actuales</button>
+          <span id="roleKeysDisplay" style="font-size:.75rem;opacity:.7;word-break:break-all"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Mantenimiento</h3>
+        <div class="btn-row">
+          <button class="btn danger" id="btnResetWifi" disabled>Reset WiFi</button>
+          <button class="btn danger" id="btnWipeSlots" disabled>Borrar Todas Las Casillas</button>
+          <button class="btn danger" id="btnFactoryReset" disabled>Factory Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pairing (Master only) -->
+    <div id="tabPairing" class="tab">
+      <div class="card">
+        <h3>Dispositivo</h3>
+        <p style="margin-bottom:.5rem;font-size:.85rem"><strong>Device ID:</strong> <span id="pairDeviceId"></span></p>
+        <p style="font-size:.85rem"><strong>Secret:</strong>
+          <span id="pairSecret" class="pair-sec" style="display:none"></span>
+          <button class="btn small" id="btnToggleSecret" style="margin-left:.4rem">Mostrar</button>
+        </p>
+      </div>
+      <div class="card">
+        <h3>Código QR de Emparejamiento</h3>
+        <div style="text-align:center;margin:1rem 0"><div id="qrContainer" style="display:inline-block;background:#fff;padding:.5rem;border-radius:6px"></div></div>
+        <div class="btn-row" style="justify-content:center">
+          <button class="btn accent" id="btnGenQR">Generar QR</button>
+        </div>
+        <p style="margin-top:.8rem;font-size:.78rem;opacity:.5">El QR contiene: {"device_id":"...","secret":"..."}</p>
+        <textarea id="qrRawText" readonly style="width:100%;height:60px;margin-top:.5rem;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:.5rem;font-size:.78rem;resize:none"></textarea>
+        <div class="btn-row"><button class="btn small" id="btnCopyQR">Copiar</button></div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div id="tabLogs" class="tab">
+      <div class="card">
+        <h3>Registros del Dispositivo</h3>
+        <div class="btn-row"><button class="btn accent" id="btnGetLogs" disabled>Solicitar Logs</button></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Tiempo</th><th>Acción</th><th>Slot</th><th>Estado</th></tr></thead>
+          <tbody id="logTableBody"><tr><td colspan="4" class="empty-msg">Presione "Solicitar Logs" para cargar</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Consola -->
+    <div id="tabConsole" class="tab">
+      <div class="card">
+        <h3>Datos en Vivo (MQTT)</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo GEYLCA. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
+        <div class="console-toolbar">
+          <label class="console-chk"><input type="checkbox" id="consoleFollow" checked> Auto-seguir</label>
+          <button class="btn small" id="btnConsoleClear">Limpiar</button>
+          <button class="btn small" id="btnConsoleCopy">Copiar</button>
+          <span id="consoleCount" class="console-count">0 eventos</span>
+        </div>
+        <div class="console-out" id="consoleOut">
+          <div class="console-empty">Esperando tráfico MQTT... (pestaña de datos en vivo)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Consola Maestra (multi-módulo) -->
+    <div id="tabMaster" class="tab">
+      <div class="card">
+        <h3>Consola Maestra</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Registro local de módulos en este dispositivo. Como master podés ver y operar todos los módulos del registro. Los secrets apenas se guardan en este dispositivo/app (localStorage). Para agregar uno, copiá la "Data Cruda" de la pestaña Pairing del módulo.</p>
+        <div class="btn-row">
+          <button class="btn accent" id="btnMasterAdd">+ Agregar Módulo</button>
+          <button class="btn" id="btnMasterImport">Importar JSON</button>
+          <button class="btn" id="btnMasterExport">Exportar JSON</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Módulo</th><th>Estado</th><th>FW</th><th>Libres</th><th>Último evento</th><th>Acciones</th></tr></thead>
+          <tbody id="masterTableBody"><tr><td colspan="6" class="empty-msg">Sin módulos en el registro. Usá "+ Agregar Módulo" para cargar los módulos.</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toastContainer" class="toast-container hidden"></div>
+<div id="modalContainer" style="display:none"></div>
+
+<script>
+(function(){
+"use strict";
+
+const MQTT_BROKER = "wss://broker.hivemq.com:8884/mqtt";
+const EVENTS_PER_PAGE = 50;
+const MAX_EVENTS = 20;
+const MAX_LOGS = 100;
+
+let client = null;
+let deviceId = "";
+
+let progStatus = {};
+let selectedProgId = "";
+let pendingProgKey = "";
+let progScanTimer = null;
+let deviceSecret = "";
+let currentRole = "master";
+let masterModules=[];
+let masterState={};
+let masterTimer=null;
+let pendingResponse = null;
+let eventBuffer = [];
+let logBuffer = [];
+let slotData = {};
+let slotPage = 1;
+let slotTotalKnown = 4000;
+let slotFreeKnown = 0;
+let securityMode = "--";
+let isOnline = false;
+let learnKeyActive = false;
+let pendingScanKey = "";
+let pendingScanSlot = null;
+let qrObj = null;
+let statusInterval = null;
+let consoleBuf = [];
+let moduleBadgeTimer = null;
+let moduleStateKnown = false;
+let lastModuleSeen = 0;
+let announcedOnline = false;
+
+const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys"],admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
+
+function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
+
+async function computeHMAC(data,secret){
+  if(crypto.subtle){
+    try{
+      const enc=new TextEncoder();
+      const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+      const sig=await crypto.subtle.sign("HMAC",key,enc.encode(data));
+      return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }catch(e){}
+  }
+  return hmacSHA256Hex(data,secret);
+}
+
+function sha256(bytes){
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  let l=bytes.length;let i=0;
+  const bl=bytes.slice();bl.push(0x80);
+  while(bl.length%64!==56)bl.push(0);
+  const blen=l*8;
+  const hi=Math.floor(blen/0x100000000),lo=blen>>>0;
+  for(i=0;i<4;i++)bl.push((hi>>>8*(3-i))&0xff);
+  for(i=0;i<4;i++)bl.push((lo>>>8*(3-i))&0xff);
+  const w=new Array(64);
+  let h=H.slice();
+  for(let idx=0;idx<bl.length;idx+=64){
+    for(i=0;i<16;i++)w[i]=((bl[idx+i*4]<<24)|(bl[idx+i*4+1]<<16)|(bl[idx+i*4+2]<<8)|bl[idx+i*4+3])>>>0;
+    for(i=16;i<64;i++){
+      const s0=((w[i-15]>>>7)|(w[i-15]<<25))^((w[i-15]>>>18)|(w[i-15]<<14))^((w[i-15]>>>3));
+      const s1=((w[i-2]>>>17)|(w[i-2]<<15))^((w[i-2]>>>19)|(w[i-2]<<13))^((w[i-2]>>>10));
+      w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;
+    }
+    let a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+    for(i=0;i<64;i++){
+      const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7));
+      const ch=(e&f)^(~e&g);
+      const t1=(hh+S1+ch+K[i]+w[i])>>>0;
+      const S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10));
+      const maj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+maj)>>>0;
+      hh=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+    }
+    h[0]=(h[0]+a)>>>0;h[1]=(h[1]+b)>>>0;h[2]=(h[2]+c)>>>0;h[3]=(h[3]+d)>>>0;
+    h[4]=(h[4]+e)>>>0;h[5]=(h[5]+f)>>>0;h[6]=(h[6]+g)>>>0;h[7]=(h[7]+hh)>>>0;
+  }
+  let out="";
+  for(i=0;i<8;i++)out+=(h[i]>>>0).toString(16).padStart(8,"0");
+  return out;
+}
+
+function strBytes(s){const u=unescape(encodeURIComponent(s));const a=new Array(u.length);for(let i=0;i<u.length;i++)a[i]=u.charCodeAt(i)&0xff;return a;}
+
+function hmacSHA256Hex(msg,key){
+  let keyBytes=strBytes(key);
+  if(keyBytes.length>64)keyBytes=s2b(sha256(keyBytes));
+  while(keyBytes.length<64)keyBytes.push(0);
+  const ipad=new Array(64),opad=new Array(64);
+  for(let i=0;i<64;i++){ipad[i]=keyBytes[i]^0x36;opad[i]=keyBytes[i]^0x5c;}
+  const inner=sha256(ipad.concat(strBytes(msg)));
+  const innerBytes=s2b(inner);
+  const outerStr=opad.concat(innerBytes);
+  return sha256(outerStr);
+}
+function s2b(hex){const a=[];for(let i=0;i<hex.length;i+=2)a.push(parseInt(hex.substr(i,2),16));return a;}
+
+function makeMsg(action,extra){
+  const ts=Math.floor(Date.now()/1000);
+  const payload={action:action,role:currentRole,timestamp:ts,...(extra||{})};
+  return computeHMAC(action+ts,deviceSecret).then(token=>{
+    payload.token=token;
+    return payload;
+  });
+}
+
+function sanitize(s){
+  if(typeof s!=="string")return String(s);
+  const el=document.createElement("span");
+  el.textContent=s;
+  return el.innerHTML;
+}
+
+function escHtml(s){return sanitize(s)}
+
+function toast(msg,type){
+  type=type||"info";
+  const c=document.getElementById("toastContainer");
+  c.classList.remove("hidden");
+  const t=document.createElement("div");
+  t.className="toast "+type;
+  t.textContent=msg;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),300)},3000);
+}
+
+function showModal(title,text,onConfirm,confirmLabel){
+  confirmLabel=confirmLabel||"Confirmar";
+  const mc=document.getElementById("modalContainer");
+  mc.style.display="flex";
+  mc.className="modal-bg";
+  mc.innerHTML='<div class="modal"><h3>'+escHtml(title)+'</h3><p>'+escHtml(text)+'</p><input id="modalInput" type="text" placeholder="Escriba confirmación..." style="display:none"><div class="btn-row"><button class="btn" id="modalCancel">Cancelar</button><button class="btn danger" id="modalConfirm">'+escHtml(confirmLabel)+'</button></div></div>';
+  document.getElementById("modalCancel").onclick=()=>{mc.style.display="none"};
+  document.getElementById("modalConfirm").onclick=()=>{mc.style.display="none";onConfirm()};
+  return mc;
+}
+
+function formatTs(unix){
+  if(!unix)return"--";
+  const d=new Date(unix*1000);
+  return d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+
+function setConnState(s){
+  const dot=document.getElementById("connStatus");
+  dot.className="conn-dot "+s;
+  if(s==="on")dot.title="Conectado";
+  else if(s==="off")dot.title="Desconectado";
+  else dot.title="Conectando...";
+}
+
+function setModuleState(s){
+  const b=document.getElementById("moduleBadge");
+  if(!b)return;
+  if(s==="online"){b.className="status-tag online";b.textContent="MÓDULO EN LÍNEA";}
+  else if(s==="offline"){b.className="status-tag offline";b.textContent="MÓDULO OFF-LINE";}
+  else{b.className="status-tag wait";b.textContent=(s==="unknown")?"VERIFICANDO MÓDULO...":"MÓDULO SIN RESPUESTA";}
+}
+
+function markModuleOnline(){
+  clearTimeout(moduleBadgeTimer);
+  moduleStateKnown=true;
+  lastModuleSeen=Date.now();
+  setModuleState("online");
+  moduleBadgeTimer=setTimeout(()=>{
+    if(!moduleStateKnown||Date.now()-lastModuleSeen>70000)setModuleState("offline");
+  },70000);
+  if(!announcedOnline){
+    announcedOnline=true;
+    toast("Módulo en línea — listo para operar","success");
+  }
+}
+
+function markModuleOffline(){
+  clearTimeout(moduleBadgeTimer);
+  moduleStateKnown=true;
+  lastModuleSeen=0;
+  announcedOnline=false;
+  setModuleState("offline");
+}
+
+function armModuleCheck(){
+  clearTimeout(moduleBadgeTimer);
+  moduleStateKnown=false;
+  setModuleState("unknown");
+  moduleBadgeTimer=setTimeout(()=>{
+    if(!moduleStateKnown){
+      setModuleState("noresp");
+      toast("Sin respuesta del módulo. Verifique que el Device ID y secreto del login coinciden con los del módulo: abra http://"+location.hostname+" dev-info o la IP del módulo y pegue su Data Cruda","error");
+    }
+  },25000);
+}
+
+function consoleAdd(dir,tp,payload){
+  const pl=typeof payload==="string"?payload:JSON.stringify(payload);
+  consoleBuf.push({t:Math.floor(Date.now()/1000),dir:dir,tp:tp,pl:pl});
+  if(consoleBuf.length>400)consoleBuf.splice(0,consoleBuf.length-400);
+  renderConsole();
+}
+
+function renderConsole(){
+  const out=document.getElementById("consoleOut");
+  if(!out)return;
+  const followEl=document.getElementById("consoleFollow");
+  const follow=!followEl||followEl.checked;
+  out.innerHTML=consoleBuf.slice(-200).map(e=>
+    "<div class=\"console-line\"><span class=\"console-time\">"+formatTs(e.t)+"</span><span class=\"console-dir "+e.dir+"\">"+(e.dir==="tx"?"TX":"RX")+"</span><span class=\"console-topic\">"+escHtml(e.tp)+"</span><span class=\"console-payload\">"+escHtml(e.pl)+"</span></div>"
+  ).join("")||'<div class="console-empty">Esperando tráfico MQTT...</div>';
+  const c=document.getElementById("consoleCount");
+  if(c)c.textContent=consoleBuf.length+" eventos";
+  if(follow)out.scrollTop=out.scrollHeight;
+}
+
+function setWaiting(waiting){
+  document.getElementById("btnOpenDoor").disabled=waiting||!canDo("open");
+  document.getElementById("btnRefreshStatus").disabled=waiting||!canDo("get_free_slots");
+  document.getElementById("btnSetKey").disabled=waiting||!canDo("set_key");
+  document.getElementById("btnLearnKey").disabled=waiting||!canDo("learn_key");
+  document.getElementById("btnFindFreeSlot").disabled=waiting||!canDo("get_first_free_slot");
+  document.getElementById("btnQuerySlot").disabled=waiting||!canDo("get_slot_info");
+  document.getElementById("btnSetRelay").disabled=waiting||!canDo("set_relay");
+  document.getElementById("btnSetSecMode").disabled=waiting||!canDo("set_security_mode");
+  document.getElementById("btnResetWifi").disabled=waiting||!canDo("reset_wifi");
+  document.getElementById("btnFactoryReset").disabled=waiting||!canDo("factory_reset");
+  document.getElementById("btnWipeSlots").disabled=waiting||!canDo("wipe_slots");
+  document.getElementById("btnGetLogs").disabled=waiting||!canDo("get_logs");
+  document.getElementById("btnGetRoleKeys").disabled=waiting||!canDo("get_role_keys");
+  document.getElementById("btnScanProgs").disabled=waiting;
+  if(waiting){
+    document.getElementById("btnOpenDoor").innerHTML='<span class="spinner"></span>Espere...';
+  }else{
+    document.getElementById("btnOpenDoor").innerHTML="ABRIR PUERTA";
+  }
+}
+
+function topic(suffix){return "geylca/"+deviceId+"/"+suffix}
+
+function publish(payload){
+  if(!client||!client.connected)return;
+  const msg=JSON.stringify(payload);
+  const tp=topic("cmd");
+  client.publish(tp,msg,{qos:1});
+  consoleAdd("tx",tp,msg);
+}
+
+function publishTo(tp,obj){
+  if(!client||!client.connected)return;
+  const msg=JSON.stringify(obj);
+  client.publish(tp,msg,{qos:1});
+  consoleAdd("tx",tp,msg);
+}
+
+function handleProgMessage(tp,payload){
+  const parts=tp.split("/");
+  const progId=parts[1];
+  let d={};
+  try{d=JSON.parse(payload)}catch(e){}
+  if(parts[3]==="status"){
+    const st=String(d.status||"").toUpperCase();
+    if(st==="ONLINE")progStatus[progId]={online:true,lastSeen:Date.now(),name:d.name||"Programador"};
+    else if(st==="OFFLINE"&&progStatus[progId]){progStatus[progId].online=false;}
+    renderProgList();
+    return;
+  }
+  if(parts[3]!=="events")return;
+  const st=d.status||"";
+  const stEl=document.getElementById("progReadStatus");
+  if(st==="WAITING_KEY"){
+    if(stEl)stEl.innerHTML="Esperando presentación de la llave en <b>"+escHtml(progId)+"</b>...";
+    toast("Esperando llave en el programador "+progId+"...","info");
+  }else if(st==="KEY_SCAN"){
+    pendingProgKey=d.key||"";
+    const skInp=document.getElementById("slotKey");
+    if(skInp)skInp.value=pendingProgKey;
+    showSlotsSub("slotsView");
+    if(stEl)stEl.innerHTML="Llave capturada desde <b>"+escHtml(progId)+"</b> y cargada en el campo <b>Key (hex)</b>.";
+    toast("Llave capturada y cargada en Agregar Key","success");
+    setWaiting(false);
+  }else if(st==="TIMEOUT"){
+    pendingProgKey="";
+    if(stEl)stEl.textContent="Tiempo de espera agotado en "+progId+". Pulse 'Leer Llave' para reintentar.";
+    toast("Sin llave presentada en "+progId,"warn");
+    setWaiting(false);
+  }
+}
+
+function scanProgramadores(){
+  renderProgList();
+  document.getElementById("progScanInfo").textContent="Buscando programadores activos...";
+  setTimeout(()=>renderProgList(),300);
+  if(progScanTimer)clearInterval(progScanTimer);
+  progScanTimer=setInterval(()=>{
+    const now=Date.now();
+    Object.keys(progStatus).forEach(k=>{
+      if(progStatus[k].online&&progStatus[k].lastSeen&&(now-progStatus[k].lastSeen)>150000)progStatus[k].online=false;
+    });
+    renderProgList();
+  },5000);
+}
+
+function renderProgList(){
+  const tb=document.getElementById("progTableBody");
+  const target=document.getElementById("progTargetModule");
+  if(target)target.textContent=deviceId||"--";
+  const list=Object.keys(progStatus);
+  const info=document.getElementById("progScanInfo");
+  if(!list.length){
+    if(tb)tb.innerHTML='<tr><td colspan="3" class="empty-msg">No se detectaron programadores. Mantenga encendido el Programador Inalámbrico V1.0 y vuelva a escanear.</td></tr>';
+    if(info)info.textContent="";
+    return;
+  }
+  const onlineCount=list.filter(k=>progStatus[k].online).length;
+  if(tb)tb.innerHTML=list.map(id=>{
+    const p=progStatus[id];
+    const online=p&&p.online;
+    const sel=selectedProgId===id;
+    const badge=online?'<span class="status-tag success">EN LÍNEA</span>':'<span class="status-tag">OFFLINE</span>';
+    const btn=online
+      ? '<button class="btn small '+(sel?"":"")+'" onclick="GEYLCA.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
+      : '<button class="btn small" disabled>Fuera de línea</button>';
+    return "<tr><td><b>"+escHtml(id)+"</b><div style=\"font-size:.72rem;opacity:.6\">"+escHtml(p?p.name:"")+"</div></td><td>"+badge+"</td><td>"+btn+"</td></tr>";
+  }).join("");
+  if(info)info.textContent=onlineCount+" programador(es) en línea";
+}
+window.GEYLCA=window.GEYLCA||{};
+window.GEYLCA.selectProg=function(id){
+  selectedProgId=id;
+  pendingProgKey="";
+  document.getElementById("progReadBox").style.display="block";
+  const stEl=document.getElementById("progReadStatus");
+  if(stEl)stEl.innerHTML="Programador <b>"+escHtml(id)+"</b> seleccionado. Pulse <b>Leer Llave</b> y presente la iButton en el programador.";
+  renderProgList();
+};
+window.GEYLCA.iniciarLectura=function(){
+  if(!selectedProgId){toast("Seleccione primero un programador","error");return;}
+  if(!progStatus[selectedProgId]||!progStatus[selectedProgId].online){toast("El programador no está en línea","error");return;}
+  pendingProgKey="";
+  const stEl=document.getElementById("progReadStatus");
+  if(stEl)stEl.innerHTML="Solicitando lectura en <b>"+escHtml(selectedProgId)+"</b>...";
+  publishTo("geylca/"+selectedProgId+"/prog/cmd",{action:"read_key"});
+  setWaiting(true);
+};
+
+function renderEvents(){
+  const tb=document.getElementById("eventTableBody");
+  if(!eventBuffer.length){tb.innerHTML='<tr><td colspan="3" class="empty-msg">Esperando eventos...</td></tr>';return}
+  tb.innerHTML=eventBuffer.slice(-MAX_EVENTS).reverse().map(e=>"<tr><td>"+escHtml(formatTs(e.time))+"</td><td>"+escHtml(e.action||"--")+"</td><td>"+escHtml(e.detail||"--")+"</td></tr>").join("");
+}
+
+function renderLogs(){
+  const tb=document.getElementById("logTableBody");
+  if(!logBuffer.length){tb.innerHTML='<tr><td colspan="4" class="empty-msg">Sin registros</td></tr>';return}
+  tb.innerHTML=logBuffer.slice(-MAX_LOGS).reverse().map(l=>"<tr><td>"+escHtml(formatTs(l.time))+"</td><td>"+escHtml(l.action||"--")+"</td><td>"+escHtml(String(l.slot||"--"))+"</td><td>"+escHtml(l.status||"--")+"</td></tr>").join("");
+}
+
+function renderSlots(){
+  const filter=document.getElementById("slotFilter").value.toLowerCase().trim();
+  const order=document.getElementById("slotOrder").value;
+  let keys=Object.keys(slotData).map(Number);
+  if(order==="apto-asc"||order==="apto-desc"){
+    const dir=order==="apto-asc"?1:-1;
+    keys.sort((a,b)=>{const r=(slotData[a].aparto||"").localeCompare(slotData[b].aparto||"",undefined,{numeric:true,sensitivity:"base"});return r?dir*r:a-b});
+  }else{
+    keys.sort((a,b)=>order==="slot-desc"?b-a:a-b);
+  }
+  const filtered=filter?keys.filter(k=>{
+    const d=slotData[k];
+    return String(k).includes(filter)||(d.aparto||"").toLowerCase().includes(filter)||(d.key||"").toLowerCase().includes(filter);
+  }):keys;
+  const perPage=50;
+  const totalPages=Math.max(1,Math.ceil(filtered.length/perPage));
+  if(slotPage>totalPages)slotPage=totalPages;
+  const start=(slotPage-1)*perPage;
+  const page=filtered.slice(start,start+perPage);
+  const tb=document.getElementById("slotTableBody");
+  if(!page.length){tb.innerHTML='<tr><td colspan="5" class="empty-msg">No se encontraron slots</td></tr>';}
+  else{
+    tb.innerHTML=page.map(k=>{
+      const d=slotData[k];
+      const suspended=d.status==="suspended";
+      const togDis=canDo("suspend_slot")?"":" disabled";
+      const delDis=canDo("clear_slot")?"":" disabled";
+      const aptDis=canDo("set_apto")?"":" disabled";
+      const togLabel=suspended?"Activar":"Suspender";
+      return "<tr><td>"+k+"</td><td style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td>"+escHtml(d.aparto||"--")+"</td><td><span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span></td><td><button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+togLabel+"</button> <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+    }).join("");
+  }
+  document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
+  document.getElementById("slotPrev").disabled=slotPage<=1;
+  document.getElementById("slotNext").disabled=slotPage>=totalPages;
+}
+
+function processEvent(msg){
+  let d;
+  try{d=typeof msg==="string"?JSON.parse(msg):msg}catch(e){return}
+
+  const status=d.status||"";
+  const message=d.message||"";
+  const actionField=d.action||"";
+  const slotNum=d.slot;
+
+  const summary=status+(message?" ("+message+")":"")+(slotNum!==undefined?" slot:"+slotNum:"");
+  eventBuffer.push({time:d.timestamp||Math.floor(Date.now()/1000),action:actionField||status||"event",detail:message||JSON.stringify(d)});
+  if(eventBuffer.length>50)eventBuffer=eventBuffer.slice(-50);
+  renderEvents();
+
+  if(d.max_slots!==undefined)document.getElementById("statTotal").textContent=d.max_slots;
+  if(d.free_slots!==undefined){document.getElementById("statFree").textContent=d.free_slots;slotFreeKnown=d.free_slots}
+  if(d.security_mode!==undefined){document.getElementById("statSecMode").textContent=d.security_mode+" bytes";securityMode=d.security_mode}
+  if(d.relay_time!==undefined)document.getElementById("relayTime").value=d.relay_time;
+
+  if(actionField==="Key learned"){
+    learnKeyActive=false;
+    pendingScanKey="";
+    pendingScanSlot=null;
+    const learnedSlot=d.slot!==undefined?d.slot:slotNum;
+    document.getElementById("learnWaitBox").style.display="none";
+    if(learnedSlot!==undefined){
+      slotData[learnedSlot]={key:d.key||"--",aparto:d.apto||"--",status:"active"};
+      renderSlots();
+    }
+    toast("Key aprendida: slot "+learnedSlot,"success");
+    setWaiting(false);
+    return;
+  }
+
+  if(actionField==="slot_info"&&slotNum!==undefined){
+    slotData[slotNum]={key:d.key||"--",aparto:d.apto||"--",status:d.status||"active"};
+    renderSlots();
+    toast("Slot #"+slotNum+" cargado","info");
+    setWaiting(false);
+    return;
+  }
+
+  if(d.master!==undefined){
+    const disp=document.getElementById("roleKeysDisplay");
+    if(disp)disp.textContent="Instalador: "+(d.installer||"no configurada")+" | Admin: "+(d.admin||"no configurada")+" | Master: "+(d.master||"")+"";
+    toast("Claves recibidas","info");
+    setWaiting(false);
+    return;
+  }
+
+  if(d.status==="WAITING_KEY"){
+    learnKeyActive=true;
+    pendingScanKey="";
+    pendingScanSlot=d.slot!==undefined?d.slot:null;
+    document.getElementById("learnWaitBox").style.display="block";
+    document.getElementById("learnWaitBox").innerHTML="Esperando presentación de llave para slot <b>#"+(d.slot!==undefined?d.slot:"(auto)")+"</b>...";
+    toast("Esperando presentación de llave...","info");
+    setWaiting(false);
+    return;
+  }
+
+  if(d.status==="KEY_SCAN"){
+    pendingScanKey=d.key||"";
+    pendingScanSlot=d.slot!==undefined?d.slot:null;
+    document.getElementById("learnWaitBox").style.display="block";
+    document.getElementById("learnWaitBox").innerHTML="<span>Código de la llave detectada:</span><div style=\"font-family:monospace;font-size:1.15rem;font-weight:bold;letter-spacing:.12em;word-break:break-all\">"+escHtml(pendingScanKey)+"</div>"+
+      "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Slot deseado (vacío = automático)</label><input id=\"scanSlotInput\" type=\"number\" min=\"1\" max=\""+(slotTotalKnown||4000)+"\" value=\""+(pendingScanSlot!==null?pendingScanSlot:"")+"\"></div>"+
+      "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Nº de apartamento</label><input id=\"scanAptoInput\" type=\"text\" value=\""+escHtml(d.apto||"")+"\" placeholder=\"Ej: 4B\"></div>"+
+      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"GEYLCA.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"GEYLCA.cancelScan()\">Cancelar</button></div>";
+    toast("Llave escaneada — asigne slot y apto, luego confirme","info");
+    return;
+  }
+
+  if(d.status==="CANCELLED"){
+    learnKeyActive=false;
+    document.getElementById("learnWaitBox").style.display="none";
+    toast("Aprendizaje cancelado por el módulo","info");
+    setWaiting(false);
+    return;
+  }
+
+  if(d.status==="WIPE_START"){
+    toast("Borrando todas las casillas de la memoria...","info");
+    consoleAdd("rx",topic("events"),"WIPE_START: vaciando "+d.max_slots+" casillas");
+    setWaiting(true);
+    return;
+  }
+  if(d.status==="GET_SLOTS_START"){
+    slotData={};
+    renderSlots();
+    toast("El módulo comenzó a enviar las casillas...","info");
+    consoleAdd("rx",topic("events"),"GET_SLOTS_START: max_slots="+(d.max_slots||"")+", batch="+(d.batch_size||""));
+    return;
+  }
+  if(d.status==="SLOTS_BATCH"&&Array.isArray(d.slots)){
+    d.slots.forEach(s=>{if(s&&s.slot)slotData[s.slot]={key:s.key||"--",aparto:s.apto||"--",status:s.sus?"suspended":"active"}});
+    return;
+  }
+  if(d.status==="SLOTS_DONE"){
+    renderSlots();
+    const n=Object.keys(slotData).length;
+    toast("Descarga completa: "+(n)+" casillas registradas"+(n===0?" (no hay llaves grabadas)":" "),"success");
+    setWaiting(false);
+    return;
+  }
+
+  if(status==="GRANTED"){
+    toast("Puerta abierta — "+(d.apto||"Remoto"),"success");
+    setWaiting(false);
+    return;
+  }
+  if(status==="DENIED"){
+    toast("Acceso denegado: "+message,"error");
+    setWaiting(false);
+    return;
+  }
+  if(status==="OK"){
+    if(d.message==="Free slot"&&d.slot){
+      document.getElementById("slotNum").value=d.slot;
+      toast("Casilla libre encontrada: #"+d.slot,"success");
+      setWaiting(false);
+      return;
+    }
+    if(d.message==="No free slot"){
+      toast("No hay casillas libres disponibles","warn");
+      setWaiting(false);
+      return;
+    }
+    if(d.message==="All slots wiped"){
+      slotData={};
+      renderSlots();
+      toast("Memoria limpia: se eliminaron todas las casillas","success");
+      consoleAdd("rx",topic("events"),"Todas las casillas fueron borradas");
+      makeMsg("get_free_slots").then(m=>publish(m));
+      setWaiting(false);
+      return;
+    }
+    if(d.message==="Key updated"&&d.slot){
+      slotData[d.slot]={key:d.key||"--",aparto:d.apto||"--",status:"active"};
+      renderSlots();
+      pendingProgKey="";
+      const skInp=document.getElementById("slotKey");
+      if(skInp)skInp.value="";
+      const stEl=document.getElementById("progReadStatus");
+      if(stEl)stEl.innerHTML="¡Llave asignada con éxito en el slot #"+d.slot+" del módulo <b>"+escHtml(deviceId)+"</b>!";
+      toast("¡Llave asignada con éxito en slot #"+d.slot+"!","success");
+      setWaiting(false);
+      return;
+    }
+    if(d.message==="Apto updated"&&d.slot&&slotData[d.slot]){
+      slotData[d.slot].aparto=d.apto||"--";
+      renderSlots();
+    }
+    if(message)toast(message,"success");
+    setWaiting(false);
+    return;
+  }
+  if(d.error){
+    toast("Error: "+d.error,"error");
+    setWaiting(false);
+    return;
+  }
+  setWaiting(false);
+}
+
+function connectMQTT(){
+  if(typeof mqtt==="undefined"){
+    const errEl=document.getElementById("loginErr");
+    errEl.textContent="La librería MQTT.js no se pudo cargar (CDN). Verifique su conexión a Internet y recargue la página.";
+    errEl.style.display="block";
+    return;
+  }
+  setConnState("connecting");
+  const clientId="web_"+Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b=>b.toString(16).padStart(2,"0")).join("");
+  try{
+    client=mqtt.connect(MQTT_BROKER,{clientId:clientId,clean:true,connectTimeout:8000,reconnectPeriod:3000});
+  }catch(e){
+    toast("Error de conexión: "+e.message,"error");
+    setConnState("off");
+    return;
+  }
+  client.on("connect",()=>{
+    setConnState("on");
+    isOnline=true;
+    document.getElementById("statConn").textContent="BROKER ONLINE";
+    document.getElementById("statConn").className="value ok";
+    toast("Conectado al broker. Verificando módulo...","success");
+    setWaiting(false);
+    armModuleCheck();
+    const subs=[topic("events"),topic("status"),topic("status_resp"),topic("logs"),"geylca/+/prog/status","geylca/+/prog/events","geylca/+/status","geylca/+/events","geylca/+/status_resp","geylca/+/logs"];
+    client.subscribe(subs,{qos:1},err=>{
+      if(err)toast("Error suscripción","error");
+    });
+    setTimeout(()=>{makeMsg("get_free_slots").then(m=>publish(m))},500);
+    if(statusInterval)clearInterval(statusInterval);
+    statusInterval=setInterval(()=>{if(client&&client.connected){makeMsg("get_free_slots").then(m=>publish(m))}},30000);
+  });
+  client.on("message",(tp,msg)=>{
+    let payload="";
+    try{payload=msg.toString()}catch(e){}
+    consoleAdd("rx",tp,payload);
+    try{
+      if(tp.includes("/prog/")){
+        handleProgMessage(tp,payload);
+        return;
+    }
+    const partsT=tp.split("/");
+    if(partsT.length>=3&&partsT[0]==="geylca"){
+      const devT=partsT[1];
+      const suffixT=partsT[2];
+      if(suffixT==="status"||suffixT==="events"||suffixT==="status_resp"||suffixT==="logs"){
+        if(currentRole==="master"&&masterModules.find(x=>x.deviceId===devT))handleMasterMessage(devT,suffixT,payload);
+        if(devT!==deviceId)return;
+      }
+    }
+    const suffix=tp.split("/").pop();
+    if(suffix==="status"){
+      let st="";
+      try{st=String((JSON.parse(payload).status||"")).toUpperCase()}catch(e){st=payload.trim().toUpperCase()}
+      if(st==="ONLINE")markModuleOnline();
+    }else if(suffix==="events"||suffix==="status_resp"){
+      markModuleOnline();
+      processEvent(payload);
+    }else if(suffix==="logs"){
+      markModuleOnline();
+      try{
+        const arr=JSON.parse(payload);
+        if(Array.isArray(arr)){
+          arr.forEach(function(l){
+            logBuffer.push({time:l.ts||l.timestamp||0,action:l.action||"--",slot:l.slot||"--",status:l.status||"--"});
+          });
+        } else {
+          logBuffer.push({time:arr.ts||arr.timestamp||Math.floor(Date.now()/1000),action:arr.action||"--",slot:arr.slot||"--",status:arr.status||"--"});
+        }
+        if(logBuffer.length>MAX_LOGS)logBuffer=logBuffer.slice(-MAX_LOGS);
+        renderLogs();
+        toast("Logs recibidos ("+arr.length+")","success");
+      }catch(e){
+        logBuffer.push({time:Math.floor(Date.now()/1000),action:"raw",slot:"--",status:payload.substring(0,60)});
+        renderLogs();
+      }
+    }
+    }catch(e){
+      consoleAdd("warn","<handler>","Excepción procesando "+tp+": "+e.message);
+    }
+  });
+  client.on("error",e=>{toast("MQTT Error: "+e.message,"error");setConnState("off")});
+  client.on("close",()=>{setConnState("off");isOnline=false;document.getElementById("statConn").textContent="BROKER OFFLINE";document.getElementById("statConn").className="value err";setModuleState("noresp")});
+  client.on("reconnect",()=>{setConnState("connecting");document.getElementById("statConn").textContent="RECONECTANDO";document.getElementById("statConn").className="value warn"});
+}
+
+function parseRawData(){
+  const val=document.getElementById("rawDataInput").value.trim();
+  const errEl=document.getElementById("loginErr");
+  if(!val){errEl.textContent="Pegue la data cruda (JSON del módulo) o escanee el QR.";errEl.style.display="block";return;}
+  let data=null;
+  try{
+    data=JSON.parse(val);
+  }catch(e){
+    const m=val.match(/"device_id"\s*:\s*"([^"]+)"/);
+    const s=val.match(/"secret"\s*:\s*"([^"]+)"/);
+    if(m&&s){data={device_id:m[1],secret:s[1]};}
+    else{errEl.textContent="No se pudo interpretar la data. Debe ser tipo: {\"device_id\":\"...\",\"secret\":\"...\"}";errEl.style.display="block";return;}
+  }
+  const id=data.device_id||data.deviceId;
+  const sec=data.secret;
+  if(!id||!sec){errEl.textContent="La data no contiene device_id o secret.";errEl.style.display="block";return;}
+  document.getElementById("loginDeviceId").value=id.trim();
+  document.getElementById("loginSecret").value=sec.trim();
+  document.getElementById("loginRole").value="master";
+  document.getElementById("loginErr").style.display="none";
+  localStorage.setItem("geylca_deviceId",id.trim());
+  localStorage.setItem("geylca_secret_"+id.trim()+"_master",sec.trim());
+  toast("Data cargada. Ahora presione Conectar.","success");
+}
+
+function doLogin(){
+  const did=document.getElementById("loginDeviceId").value.trim();
+  const sec=document.getElementById("loginSecret").value.trim();
+  const role=document.getElementById("loginRole").value;
+  const errEl=document.getElementById("loginErr");
+  if(!did){errEl.textContent="Ingrese el Device ID";errEl.style.display="block";return}
+  if(!sec){errEl.textContent="Ingrese la clave del rol (secret)";errEl.style.display="block";return}
+  errEl.style.display="none";
+  deviceId=did;
+  deviceSecret=sec;
+  currentRole=role;
+  announcedOnline=false;
+  moduleStateKnown=false;
+  const lb=document.getElementById("loginBtn");
+  lb.textContent="Conectando al broker...";
+  lb.disabled=true;
+  localStorage.setItem("geylca_deviceId",did);
+  localStorage.setItem("geylca_secret_"+did+"_"+role,sec);
+  localStorage.setItem("geylca_role",role);
+  document.getElementById("loginOverlay").style.display="none";
+  document.getElementById("appContainer").style.display="flex";
+  document.getElementById("headerDevice").textContent="Device: "+did;
+  document.getElementById("pairDeviceId").textContent=did;
+  if(role!=="master"){document.getElementById("navConfig").style.display="none";document.getElementById("navPairing").style.display="none"}
+  else{document.getElementById("navConfig").style.display="";document.getElementById("navPairing").style.display=""}
+  document.getElementById("navMaster").style.display=(role==="master")?"":"none";
+  loadMasterRegistry();
+  renderMaster();
+  connectMQTT();
+}
+
+function showSlotsSub(name){
+  document.querySelectorAll("#tabSlots .subview").forEach(v=>v.style.display="none");
+  document.querySelectorAll("#tabSlots .subnav button").forEach(b=>b.classList.toggle("active",b.dataset.sub===name));
+  const v=document.getElementById(name);
+  if(v)v.style.display="";
+  if(name==="progView")scanProgramadores();
+}
+
+function initTabs(){
+  document.querySelectorAll("nav button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(btn.dataset.tab).classList.add("active");
+    });
+  });
+}
+
+function restoreSession(){
+  const did=localStorage.getItem("geylca_deviceId");
+  const role=localStorage.getItem("geylca_role")||"master";
+  const sec=localStorage.getItem("geylca_secret_"+did+"_"+role);
+  if(did&&sec){
+    document.getElementById("loginDeviceId").value=did;
+    document.getElementById("loginSecret").value=sec;
+    document.getElementById("loginRole").value=role;
+  }
+}
+
+window.GEYLCA=window.GEYLCA||{};
+window.GEYLCA.confirmScan=function(){
+  if(!canDo("confirm_key"))return;
+  const extra={};
+  const sEl=document.getElementById("scanSlotInput");
+  const s=sEl?parseInt(sEl.value):null;
+  if(s&&s>0)extra.slot=s;
+  const aEl=document.getElementById("scanAptoInput");
+  const a=aEl?aEl.value.trim():"";
+  if(pendingScanKey)extra.key=pendingScanKey;
+  if(a)extra.apto=a;
+  if(!extra.key){toast("No hay llave pendiente","error");return}
+  makeMsg("confirm_key",extra).then(m=>publish(m));
+  setWaiting(true);
+  toast("Confirmando grabación de la llave...","info");
+};
+window.GEYLCA.cancelScan=function(){
+  if(!canDo("cancel_learn"))return;
+  makeMsg("cancel_learn").then(m=>publish(m));
+  document.getElementById("learnWaitBox").style.display="none";
+  toast("Aprendizaje cancelado","info");
+};
+window.GEYLCA.toggleSlot=function(slot){
+  const d=slotData[slot];if(!d)return;
+  const newStatus=d.status==="suspended"?"active":"suspended";
+  makeMsg("suspend_slot",{slot:slot,status:newStatus}).then(m=>publish(m));
+  setWaiting(true);
+};
+window.GEYLCA.editApto=function(slot){
+  const d=slotData[slot];if(!d)return;
+  const val=prompt("Nº de apartamento para slot #"+slot,d.aparto||"");
+  if(val===null)return;
+  makeMsg("set_apto",{slot:slot,apto:val.trim()}).then(m=>publish(m));
+  setWaiting(true);
+};
+window.GEYLCA.deleteSlot=function(slot){
+  showModal("Eliminar Slot","¿Eliminar el slot #"+slot+"? Esta acción no se puede deshacer.",()=>{
+    makeMsg("clear_slot",{slot:slot}).then(m=>publish(m));
+    setWaiting(true);
+  },"Eliminar");
+};
+
+// ===== Consola Maestra (multi-módulo) =====
+function loadMasterRegistry(){
+  try{masterModules=JSON.parse(localStorage.getItem("geylca_master_modules")||"[]")}catch(e){masterModules=[]}
+  if(!Array.isArray(masterModules))masterModules=[];
+}
+function saveMasterRegistry(){localStorage.setItem("geylca_master_modules",JSON.stringify(masterModules));}
+function masterModal(title,fields,onOk,okLabel){
+  okLabel=okLabel||"Aceptar";
+  const mc=document.getElementById("modalContainer");
+  let html='<div class="modal"><h3>'+escHtml(title)+'</h3>';
+  fields.forEach(f=>{
+    if(f.type==="hidden"){html+='<input type="hidden" id="mm_'+escHtml(f.id)+'" value="'+escHtml(f.value||"")+'">';return;}
+    if(f.label)html+='<label style="font-size:.8rem;margin-bottom:.15rem;display:block">'+escHtml(f.label)+'</label>';
+    if(f.type==="textarea"){
+      html+='<textarea id="mm_'+escHtml(f.id)+'" rows="'+(f.rows||3)+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;resize:vertical">'+escHtml(f.value||"")+'</textarea>';
+    }else{
+      html+='<input id="mm_'+escHtml(f.id)+'" type="'+(f.type||"text")+'" value="'+escHtml(f.value||"")+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;outline:none">';
+    }
+  });
+  html+='<div class="btn-row"><button class="btn" id="mm_cancel">Cancelar</button><button class="btn danger" id="mm_ok">'+escHtml(okLabel)+'</button></div></div>';
+  mc.innerHTML=html;
+  mc.className="modal-bg";
+  mc.style.display="flex";
+  document.getElementById("mm_cancel").onclick=()=>{mc.style.display="none"};
+  document.getElementById("mm_ok").onclick=()=>{
+    const res={};
+    fields.forEach(f=>{const el=document.getElementById("mm_"+f.id);if(el)res[f.id]=el.value.trim();});
+    mc.style.display="none";
+    onOk(res);
+  };
+  return mc;
+}
+function renderMaster(){
+  const tb=document.getElementById("masterTableBody");
+  if(!tb)return;
+  if(!masterModules.length){tb.innerHTML='<tr><td colspan="6" class="empty-msg">Sin módulos en el registro. Usá "+ Agregar Módulo" para cargar la data cruda de cada uno (disponible en Pairing del módulo).</td></tr>';return;}
+  const now=Date.now();
+  tb.innerHTML=masterModules.map((m,i)=>{
+    const st=masterState[m.deviceId]||{};
+    const online=!!st.online&&(now-(st.lastSeen||0))<90000;
+    const badge=online?'<span class="status-tag online">ONLINE</span>':(!st.online)?'<span class="status-tag offline">OFFLINE</span>':'<span class="status-tag wait">?</span>';
+    let freeP=typeof st.free==="number"?st.free:"--";
+    let extraP="";
+    if(typeof st.slots==="number")extraP='<div class="master-cell-id">'+st.slots+' llaves</div>';
+    const last=(st.last&&st.last.text)?escHtml(st.last.text):"--";
+    return '<tr><td><b>'+escHtml(m.alias||m.deviceId)+'</b><div class="master-cell-id">'+escHtml(m.deviceId)+'</div></td>'+
+      '<td>'+badge+'</td><td>'+escHtml(st.fw||"--")+'</td>'+
+      '<td>'+freeP+extraP+'</td>'+
+      '<td style="max-width:220px">'+last+'</td>'+
+      '<td><div class="master-actions">'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'open\')">Abrir</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'free\')">Libres</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'slots\')">Llaves</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'logs\')">Logs</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'info\')">Info</button>'+
+        '<button class="btn accent" onclick="GEYLCA.masterAct('+i+',\'ota\')">OTA</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'role\')">Rol</button>'+
+        '<button class="btn danger" onclick="GEYLCA.masterAct('+i+',\'wipe\')">Wipe</button>'+
+        '<button class="btn danger" title="Quitar del registro" onclick="GEYLCA.masterAct('+i+',\'remove\')">X</button>'+
+      '</div></td></tr>';
+  }).join("");
+}
+function masterCmd(i,action,extra,tip){
+  const m=masterModules[i];
+  if(!m){toast("Módulo no registrado","error");return;}
+  if(!client||!client.connected){toast("Sin conexión MQTT","error");return;}
+  const ts=Math.floor(Date.now()/1000);
+  const tp="geylca/"+m.deviceId+"/cmd";
+  const body=Object.assign({action:action,role:"master",timestamp:ts},extra||{});
+  computeHMAC(action+ts,m.secret).then(token=>{
+    body.token=token;
+    client.publish(tp,JSON.stringify(body),{qos:1});
+    consoleAdd("tx",tp,JSON.stringify(body));
+    if(tip)toast(tip,"info");
+  });
+}
+function masterAct(i,kind){
+  const m=masterModules[i];
+  if(!m)return;
+  const dev=m.deviceId;
+  switch(kind){
+    case "open":masterCmd(i,"open",null,"Apertura enviada a "+dev);break;
+    case "free":masterCmd(i,"get_free_slots",null,"Consultando libres de "+dev);break;
+    case "slots":masterState[dev]=Object.assign(masterState[dev]||{},{slots:0,slotsDone:false});masterCmd(i,"get_slots",null,"Contando llaves de "+dev+"...");break;
+    case "logs":masterCmd(i,"get_logs",{count:30},"Solicitando logs de "+dev);break;
+    case "info":masterCmd(i,"get_device_info",null,"Solicitando info de "+dev);break;
+    case "ota":masterOTA(i);break;
+    case "role":masterSetRole(i);break;
+    case "wipe":
+      masterModal("Borrar TODAS las casillas de "+dev,[],()=>masterCmd(i,"wipe_slots",null,"Borrando casillas de "+dev+"..."),"Borrar todo");
+      break;
+    case "remove":
+      masterModal("Quitar "+dev+" del registro (no borra datos del módulo)",[],()=>{masterModules.splice(i,1);saveMasterRegistry();renderMaster();toast("Módulo quitado del registro","info");},"Quitar");
+      break;
+  }
+}
+function masterAdd(){
+  masterModal("Agregar módulo",
+    [{id:"raw",label:'Pegá la data cruda del módulo o el JSON {"device_id":"...","secret":"..."}',type:"textarea",rows:3,placeholder:'{"device_id":"mod_...","secret":"..."}'}],
+    res=>{
+      const raw=res.raw||"";
+      let did="",sec="";
+      try{const o=JSON.parse(raw);did=o.device_id||o.deviceId||"";sec=o.secret||"";}
+      catch(e){const a=raw.match(/"device_id"\s*:\s*"([^"]+)"/),b=raw.match(/"secret"\s*:\s*"([^"]+)"/);if(a&&b){did=a[1];sec=b[1];}}
+      if(!did||!sec){toast("Data inválida: falta device_id o secret","error");return;}
+      if(masterModules.find(x=>x.deviceId===did)){toast("Ese módulo ya está en el registro","warn");return;}
+      masterModules.push({deviceId:did,secret:sec,alias:did});
+      saveMasterRegistry();
+      renderMaster();
+      toast("Módulo agregado: "+did,"success");
+    },"Agregar");
+}
+function masterImport(){
+  masterModal("Importar registro (JSON)",
+    [{id:"json",type:"textarea",rows:8,placeholder:'[{"deviceId":"...","secret":"..."}]'}],
+    res=>{
+      try{
+        const a=JSON.parse(res.json||"");
+        if(!Array.isArray(a))throw new Error("not array");
+        masterModules=a.map(m=>({deviceId:String(m.deviceId||m.device_id||""),secret:String(m.secret||""),alias:String(m.alias||m.deviceId||m.device_id||"")})).filter(m=>m.deviceId&&m.secret);
+        saveMasterRegistry();
+        renderMaster();
+        toast("Importados "+masterModules.length+" módulos","success");
+      }catch(e){toast("JSON inválido","error");}
+    },"Importar");
+}
+function masterExport(){
+  masterModal("Registro de módulos (JSON) — seleccioná y copiá el contenido",
+    [{id:"json",type:"textarea",rows:8,value:JSON.stringify(masterModules,null,2)}],
+    ()=>{},
+    "Cerrar");
+}
+function masterSetRole(i){
+  const m=masterModules[i];
+  if(!m)return;
+  masterModal("Asignar clave de rol en "+m.deviceId,
+    [{id:"role",value:"admin"},{id:"key",label:"Nueva clave (mín. 16 alfanuméricos)",placeholder:"p.ej. 1A2B3C4D5E6F7G8H"}],
+    res=>{
+      const role=res.role||"admin";
+      if(!res.key||res.key.length<16){toast("Clave demasiado corta","error");return;}
+      masterCmd(i,"set_role_key",{role:role,key:res.key},"Clave de "+role+" enviada a "+m.deviceId);
+    },"Enviar");
+}
+function masterOTA(i){
+  const m=masterModules[i];
+  if(!m)return;
+  const openModal=rel=>{
+    masterModal("Actualizar firmware de "+m.deviceId,
+      [{id:"url",label:"URL del firmware (.bin)",value:rel?rel.url:"",placeholder:"https://.../firmware.bin"},
+       {id:"md5",label:"MD5 (opcional)",placeholder:"32 caracteres hexadecimales"}],
+      res=>{
+        if(!res.url){toast("Falta la URL","error");return;}
+        masterCmd(i,"ota_update",{url:res.url,md5:res.md5},"OTA iniciada en "+m.deviceId+"… se reiniciará al terminar");
+      },"Actualizar");
+  };
+  fetchLatestRelease().then(openModal,()=>openModal(null));
+}
+function fetchLatestRelease(){
+  return fetch("https://api.github.com/repos/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest")
+    .then(r=>{if(!r.ok)throw new Error("no latest");return r.json();})
+    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/download/"+tag+"/firmware.bin"};});
+}
+function handleMasterMessage(devT,suffix,payload){
+  if(!masterModules.find(x=>x.deviceId===devT))return;
+  let d={};
+  try{d=JSON.parse(payload)||{}}
+  catch(e){d={}}
+  const now=Date.now();
+  const st=masterState[devT]||(masterState[devT]={});
+  st.lastSeen=now;
+  st.online=true;
+  const status=String(d.status||d.message||d.action||"").toUpperCase();
+  if(suffix==="status"){
+    if(status==="OFFLINE")st.online=false;
+  }else if(suffix==="events"||suffix==="status_resp"){
+    if(typeof d.firmware==="string")st.fw=d.firmware;
+    if(typeof d.free_slots==="number")st.free=d.free_slots;
+    if(status==="GET_SLOTS_START"){st.slots=0;st.slotsDone=false;}
+    else if(status==="SLOTS_BATCH"&&Array.isArray(d.slots)){st.slots=(st.slots||0)+d.slots.length;}
+    else if(status==="SLOTS_DONE"){if(!st.slotsDone){st.slotsDone=true;st.last={text:"llaves: "+(st.slots||0)+" en "+devT};if(st.slots>0)toast(devT+": "+st.slots+" llaves","success");}}
+    else if(status==="ONLINE"){if(typeof d.free==="number")st.free=d.free;}
+    if(status==="SLOTS_BATCH"&&Array.isArray(d.slots)){st.last={text:"lote de "+d.slots.length};}
+    else if(status==="OK"&&d.message==="Free slot"&&typeof d.slot==="number"){st.last={text:"Libre #"+d.slot};}
+    else if(status!=="SLOTS_BATCH"&&status!=="ONLINE"&&status!=="SLOTS_DONE"){
+      let t=status;
+      if(d.message)t+=" "+d.message;
+      if(d.action)t+=" ("+d.action+")";
+      if(d.slot!==undefined)t+=" slot#"+d.slot;
+      st.last={text:t};
+    }
+  }else if(suffix==="logs"){
+    let n=0;
+    try{const arr=JSON.parse(payload);n=Array.isArray(arr)?arr.length:1;}
+    catch(e){n=1;}
+    st.last={text:"logs: "+n};
+    toast("Logs de "+devT+" recibidos ("+n+")","info");
+  }
+  renderMaster();
+}
+window.GEYLCA.masterAct=masterAct;
+window.GEYLCA.masterAdd=masterAdd;
+
+function initEvents(){
+  document.getElementById("loginBtn").addEventListener("click",doLogin);
+  document.getElementById("btnParseRaw").addEventListener("click",parseRawData);
+  document.getElementById("rawDataInput").addEventListener("keydown",e=>{if(e.key==="Enter")parseRawData()});
+  document.getElementById("loginDeviceId").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("loginSecret").focus()});
+  document.getElementById("loginSecret").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
+  document.getElementById("btnDisconnect").addEventListener("click",()=>{
+    if(client){client.end(true);client=null}
+    setConnState("off");
+    setModuleState("noresp");
+    if(statusInterval){clearInterval(statusInterval);statusInterval=null}
+    document.getElementById("loginOverlay").style.display="flex";
+    document.getElementById("appContainer").style.display="none";
+    const lb=document.getElementById("loginBtn");
+    lb.disabled=false;
+    lb.textContent="Connect";
+    eventBuffer=[];logBuffer=[];slotData={};
+    renderEvents();renderLogs();
+  });
+
+  document.getElementById("btnOpenDoor").addEventListener("click",()=>{
+    if(!canDo("open"))return;
+    setWaiting(true);
+    makeMsg("open").then(m=>publish(m));
+    setTimeout(()=>setWaiting(false),5000);
+  });
+
+  document.getElementById("btnRefreshStatus").addEventListener("click",()=>{
+    if(!canDo("get_free_slots"))return;
+    setWaiting(true);
+    makeMsg("get_free_slots").then(m=>publish(m));
+    setTimeout(()=>setWaiting(false),5000);
+  });
+
+  document.getElementById("btnSetKey").addEventListener("click",()=>{
+    if(!canDo("set_key"))return;
+    const s=document.getElementById("slotNum").value;
+    const k=document.getElementById("slotKey").value.trim();
+    const a=document.getElementById("slotApto").value.trim();
+    if(!k||!/^[0-9a-fA-F]{8,16}$/.test(k)){toast("Key inválida (8-16 hex chars)","error");return}
+    const extra={key:k.toUpperCase()};
+    if(s)extra.slot=parseInt(s);
+    if(a)extra.apto=a;
+    makeMsg("set_key",extra).then(m=>publish(m));
+    setWaiting(true);
+    setTimeout(()=>setWaiting(false),5000);
+  });
+
+  document.getElementById("btnLearnKey").addEventListener("click",()=>{
+    if(!canDo("learn_key"))return;
+    const a=document.getElementById("slotApto").value.trim();
+    const extra={};
+    const s=document.getElementById("slotNum").value;
+    if(s)extra.slot=parseInt(s);
+    if(a)extra.apto=a;
+    makeMsg("learn_key",extra).then(m=>publish(m));
+    learnKeyActive=true;
+    pendingScanKey="";
+    pendingScanSlot=null;
+    document.getElementById("learnWaitBox").style.display="block";
+    document.getElementById("learnWaitBox").innerHTML="Esperando presentación de llave para slot <b>"+(extra.slot?"#"+extra.slot:"(auto)")+"</b>...";
+    toast("Esperando presentación de llave...","info");
+  });
+
+  document.getElementById("btnFindFreeSlot").addEventListener("click",()=>{
+    if(!canDo("get_first_free_slot"))return;
+    setWaiting(true);
+    makeMsg("get_first_free_slot").then(m=>publish(m));
+  });
+
+  document.getElementById("btnQuerySlot").addEventListener("click",()=>{
+    if(!canDo("get_slots"))return;
+    setWaiting(true);
+    slotData={};
+    renderSlots();
+    toast("Consultando todas las casillas...","info");
+    consoleAdd("tx",topic("cmd"),"GET_SLOTS_START solicitado");
+    makeMsg("get_slots").then(m=>publish(m));
+    setTimeout(()=>setWaiting(false),30000);
+  });
+
+  document.getElementById("slotFilter").addEventListener("input",()=>{slotPage=1;renderSlots()});
+  document.getElementById("slotOrder").addEventListener("change",()=>renderSlots());
+  document.getElementById("slotPrev").addEventListener("click",()=>{slotPage--;renderSlots()});
+  document.getElementById("slotNext").addEventListener("click",()=>{slotPage++;renderSlots()});
+
+  document.getElementById("btnScanProgs").addEventListener("click",()=>{
+    scanProgramadores();
+    toast("Escaneo de programadores completado","info");
+  });
+  document.getElementById("btnProgRead").addEventListener("click",()=>GEYLCA.iniciarLectura());
+  document.querySelectorAll(".subnav button").forEach(btn=>{
+    btn.addEventListener("click",()=>showSlotsSub(btn.dataset.sub));
+  });
+
+  document.getElementById("btnSetRelay").addEventListener("click",()=>{
+    if(!canDo("set_relay"))return;
+    const v=parseInt(document.getElementById("relayTime").value);
+    if(!v||v<1||v>30){toast("Tiempo inválido (1-30s)","error");return}
+    makeMsg("set_relay",{relay_time:v}).then(m=>publish(m));
+    setWaiting(true);
+    setTimeout(()=>setWaiting(false),5000);
+  });
+
+  document.getElementById("btnSetSecMode").addEventListener("click",()=>{
+    if(!canDo("set_security_mode"))return;
+    const v=document.getElementById("secModeSelect").value;
+    makeMsg("set_security_mode",{mode:parseInt(v)}).then(m=>publish(m));
+    setWaiting(true);
+    setTimeout(()=>setWaiting(false),5000);
+  });
+
+  function randKey(len){
+    const chars="ABCDEF0123456789";
+    let s="";
+    for(let i=0;i<len;i++)s+=chars[Math.floor(Math.random()*16)];
+    return s;
+  }
+
+  document.getElementById("btnGenInstallerKey").addEventListener("click",()=>{
+    document.getElementById("installerKeyInput").value=randKey(32);
+    document.getElementById("btnSetInstallerKey").disabled=false;
+  });
+  document.getElementById("btnGenAdminKey").addEventListener("click",()=>{
+    document.getElementById("adminKeyInput").value=randKey(32);
+    document.getElementById("btnSetAdminKey").disabled=false;
+  });
+
+  document.getElementById("installerKeyInput").addEventListener("input",()=>{
+    document.getElementById("btnSetInstallerKey").disabled=document.getElementById("installerKeyInput").value.trim().length<16;
+  });
+  document.getElementById("adminKeyInput").addEventListener("input",()=>{
+    document.getElementById("btnSetAdminKey").disabled=document.getElementById("adminKeyInput").value.trim().length<16;
+  });
+
+  document.getElementById("btnSetInstallerKey").addEventListener("click",()=>{
+    const k=document.getElementById("installerKeyInput").value.trim();
+    if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
+    makeMsg("set_role_key",{role:"installer",key:k}).then(m=>publish(m));
+    toast("Guardando clave instalador...","info");
+  });
+  document.getElementById("btnSetAdminKey").addEventListener("click",()=>{
+    const k=document.getElementById("adminKeyInput").value.trim();
+    if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
+    makeMsg("set_role_key",{role:"admin",key:k}).then(m=>publish(m));
+    toast("Guardando clave admin...","info");
+  });
+
+  document.getElementById("btnGetRoleKeys").addEventListener("click",()=>{
+    if(!canDo("get_role_keys"))return;
+    makeMsg("get_role_keys").then(m=>publish(m));
+    toast("Solicitando claves...","info");
+  });
+
+  let wifiClicks=0;
+  let wifiClickTimer=null;
+  document.getElementById("btnResetWifi").addEventListener("click",()=>{
+    if(!canDo("reset_wifi"))return;
+    wifiClicks++;
+    if(wifiClicks>=2){
+      wifiClicks=0;
+      if(wifiClickTimer){clearTimeout(wifiClickTimer);wifiClickTimer=null}
+      showModal("Reset WiFi","Se reiniciará la configuración WiFi del módulo. ¿Continuar?",()=>{
+        makeMsg("reset_wifi").then(m=>publish(m));
+        toast("Comando enviado","info");
+      },"Reiniciar WiFi");
+    }else{
+      toast("Haga click otra vez para confirmar","warn");
+      wifiClickTimer=setTimeout(()=>{wifiClicks=0;wifiClickTimer=null},3000);
+    }
+  });
+
+  document.getElementById("btnFactoryReset").addEventListener("click",()=>{
+    if(!canDo("factory_reset"))return;
+    const mc=document.getElementById("modalContainer");
+    mc.style.display="flex";
+    mc.className="modal-bg";
+    mc.innerHTML='<div class="modal"><h3>Factory Reset</h3><p>Esto borrará TODOS los datos del dispositivo. Escriba <strong>CONFIRMAR</strong> para proceder.</p><input id="factoryConfirmInput" type="text" placeholder="CONFIRMAR" style="text-transform:uppercase"><div class="btn-row"><button class="btn" id="modalCancel">Cancelar</button><button class="btn danger" id="factoryConfirmBtn">Resetear</button></div></div>';
+    document.getElementById("modalCancel").onclick=()=>{mc.style.display="none"};
+    document.getElementById("factoryConfirmBtn").onclick=()=>{
+      const val=document.getElementById("factoryConfirmInput").value.trim().toUpperCase();
+      if(val!=="CONFIRMAR"){toast("Debe escribir CONFIRMAR","error");return}
+      mc.style.display="none";
+      makeMsg("factory_reset").then(m=>publish(m));
+      toast("Factory reset enviado","warn");
+    };
+  });
+
+  document.getElementById("btnWipeSlots").addEventListener("click",()=>{
+    if(!canDo("wipe_slots"))return;
+    const mc=document.getElementById("modalContainer");
+    mc.style.display="flex";
+    mc.className="modal-bg";
+    mc.innerHTML='<div class="modal"><h3>Borrar todas las casillas</h3><p>Se vaciarán TODAS las casillas de llaves del módulo (los datos de Wi-Fi y claves de rol NO se tocan). Escriba <strong>CONFIRMAR</strong> para proceder.</p><input id="wipeConfirmInput" type="text" placeholder="CONFIRMAR" style="text-transform:uppercase"><div class="btn-row"><button class="btn" id="modalCancel">Cancelar</button><button class="btn danger" id="wipeConfirmBtn">Borrar todo</button></div></div>';
+    document.getElementById("modalCancel").onclick=()=>{mc.style.display="none"};
+    document.getElementById("wipeConfirmBtn").onclick=()=>{
+      const val=document.getElementById("wipeConfirmInput").value.trim().toUpperCase();
+      if(val!=="CONFIRMAR"){toast("Debe escribir CONFIRMAR","error");return}
+      mc.style.display="none";
+      makeMsg("wipe_slots").then(m=>publish(m));
+      toast("Borrado de casillas enviado","warn");
+    };
+  });
+
+  document.getElementById("btnGetLogs").addEventListener("click",()=>{
+    if(!canDo("get_logs"))return;
+    makeMsg("get_logs").then(m=>publish(m));
+    toast("Solicitando logs...","info");
+  });
+
+  document.getElementById("btnToggleSecret").addEventListener("click",()=>{
+    const sp=document.getElementById("pairSecret");
+    const btn=document.getElementById("btnToggleSecret");
+    if(sp.style.display==="none"){sp.style.display="inline";sp.textContent=deviceSecret;btn.textContent="Ocultar"}
+    else{sp.style.display="none";sp.textContent="";btn.textContent="Mostrar"}
+  });
+
+  document.getElementById("btnGenQR").addEventListener("click",()=>{
+    const data=JSON.stringify({device_id:deviceId,secret:deviceSecret});
+    document.getElementById("qrRawText").value=data;
+    const container=document.getElementById("qrContainer");
+    container.innerHTML="";
+    if(qrObj){qrObj=null}
+    qrObj=new QRCode(container,{text:data,width:200,height:200,colorDark:"#0d1b2a",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+    toast("QR generado","success");
+  });
+
+  document.getElementById("btnCopyQR").addEventListener("click",()=>{
+    const ta=document.getElementById("qrRawText");
+    ta.select();
+    navigator.clipboard.writeText(ta.value).then(()=>toast("Copiado","success")).catch(()=>toast("Error al copiar","error"));
+  });
+
+  document.getElementById("btnConsoleClear").addEventListener("click",()=>{
+    consoleBuf=[];
+    renderConsole();
+    toast("Consola limpiada","info");
+  });
+
+  document.getElementById("btnConsoleCopy").addEventListener("click",()=>{
+    const txt=consoleBuf.map(e=>formatTs(e.t)+" "+e.dir.toUpperCase()+" "+e.tp+"  "+e.pl).join("\n");
+    if(!txt){toast("Consola vacía","warn");return}
+    navigator.clipboard.writeText(txt).then(()=>toast("Consola copiada ("+consoleBuf.length+" eventos)","success")).catch(()=>toast("No se pudo copiar","error"));
+  });
+
+  document.getElementById("consoleFollow").addEventListener("change",()=>{
+    const out=document.getElementById("consoleOut");
+    if(document.getElementById("consoleFollow").checked)out.scrollTop=out.scrollHeight;
+  });
+
+  document.getElementById("btnMasterAdd").addEventListener("click",masterAdd);
+  document.getElementById("btnMasterImport").addEventListener("click",masterImport);
+  document.getElementById("btnMasterExport").addEventListener("click",masterExport);
+  if(masterTimer)clearInterval(masterTimer);
+  masterTimer=setInterval(renderMaster,5000);
+
+  renderConsole();
+}
+
+restoreSession();
+initTabs();
+initEvents();
+loadMasterRegistry();
+
+})();
+</script>
+</body>
+</html>
