@@ -34,7 +34,7 @@
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.3.1"
+#define FIRMWARE_VERSION "2.3.2"
 
 #define PIN_LEN 6
 #define DEFAULT_ADMIN_PIN "123456"
@@ -1367,6 +1367,7 @@ void setup() {
     Serial.print(FIRMWARE_VERSION);
     Serial.println(" (4000 Casillas) ---");
 
+    preferences.begin("geylca_apt", true);
     deviceId = preferences.getString("devId", "");
     if (deviceId.length() == 0) {
         deviceId = generarDeviceIdUnico();
