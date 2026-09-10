@@ -36,14 +36,21 @@ El módulo, la primera vez, arranca en modo AP (punto de acceso). Conectarse a s
 
 Los datos quedan guardados en la NVS de la ESP32. Comandos de mantenimiento por MQTT: `reset_wifi`, `factory_reset`.
 
-## Claves de roles (v2.2.0)
+## Claves de roles (v2.3.0) — PINs de 6 dígitos
 
-El módulo autentica por HMAC las claves de los roles. Acciones por MQTT (todas sobre `geylca/<id>/cmd` con firma según rol):
+El módulo autentica por HMAC los **PINs de rol** (exactamente 6 dígitos numéricos). Jerarquía de permisos por rango: **master (3) > instalador (2) > admin (1)**; una acción exige `rango(rol) >= rango(requerido)`.
 
-- `verify_role` — con `action + timestamp + token`; el módulo prueba la clave contra `admin`, `installer` y el secret maestro, y responde `{"status":"OK","message":"Role verified","role":"…"}` en `status_resp`.
-- `set_role_key` — recibe **`target_role`** (`admin`/`installer`) y `key` (mín. 16 alfanuméricos). Permiso: master/admin pueden asignar cualquier rol, el instalador solo su propio rol. Respuesta `{"status":"OK","message":"<rol> key updated"}`.
-- `get_role_keys` — perfilado por rol: master ve las 3 claves, admin ve admin+installer, instalador ve solo la suya.
-- `reset_installer_key` — solo master; deja la clave de instalador en `123456` (par default de restablecimiento; luego admin/instalador puede cambiarla).
+Acciones por MQTT (todas sobre `geylca/<id>/cmd` con firma según rol):
+
+- `verify_role` — con `action + timestamp + token`; el módulo prueba el PIN contra `admin`, `installer` y el secret maestro, y responde `{"status":"OK","message":"Role verified","role":"…"}` en `status_resp`.
+- `set_role_key` — recibe **`target_role`** (`admin`/`installer`) y `key`. Permiso: **master o instalador**; el admin siempre DENIEGO. Exige PIN válido (`^\d{6}$`), si no responde `DENIED "Invalid PIN (must be 6 digits)"`.
+- `reset_admin_key` — permiso **master o instalador**; restablece el PIN admin de fábrica a `123456`.
+- `get_role_keys` — perfilado por rol: **master** ve las 3 claves, **instalador** ve admin+instalador, **admin** es denegado.
+- `reset_installer_key` — permiso **master o instalador**; restablece el PIN de instalador a `654321`.
+
+Permisos operativos clave: `open`, `reset_wifi`, `clear_slot`, `set_relay`, `get_logs` → nivel **instalador** (el admin ya **no** puede abrir ni borrar casillas). `get_slots`, `get_slot_info`, `suspend_slot`, `get_free_slots` → nivel **admin** (el admin conserva consultar y suspender/activar casillas).
+
+En el arranque el módulo normaliza la NVS: cualquier clave de rol que no cumpla `^\d{6}$` se restablece a su fábrica (**admin `123456`**, **instalador `654321`**), de modo que tras actualizar a v2.3.0 los PINs quedan fábrica si antes había claves largas.
 
 ## Versiones y OTA
 
@@ -67,11 +74,13 @@ El ESP32 tiene particiones **app0 / app1 / otadata**: si un OTA falla, el módul
 | `get_slots` publicaba 63+ lotes | Se enviaban lote por lote aunque estuvieran vacíos | Ya optimizado: sólo publica los lotes que tienen casillas (2 lotes típicos) |
 | Mensajes `DENIED` al operar | HMAC/reloj desincronizado | El web/app y el módulo deben tener hora cercana; el web sincroniza con NTP del dispositivo |
 | Límite de publicaciones del broker | Brokers públicos limitan mensajes (p. ej. 10 por 60 s) | Cuidado con `get_slots` seguidos; esperar ~5 min si el broker corta |
-| El instalador no entra con su clave tras un reset | La clave de instalador volvió a `123456` | Reasignar una clave nueva desde Master (Rol/Reset) o desde Roles en la app operador |
+| El instalador no entra con su clave tras un reset | El PIN de instalador volvió a `654321` | Reasignar un PIN nuevo desde Master (Rol/Reset) o desde Roles en la app operador |
+| Un admin no entra con su PIN | El instalador/master cambió el PIN admin, o el módulo lo normalizó a `123456` al pasar a v2.3.0 | Pedir el PIN nuevo; o resetear el PIN admin a `123456` desde Master/app operador (rol instalador) |
 
 ## Datos de fábrica (para pruebas)
 
 - deviceId: auto por MAC (`mod_XXXXXXXX`, p. ej. `mod_D8C8F54C`).
 - secret master: `4CF5C8D8CBB0_1069` (de una unidad de prueba; en producción cada módulo genera el suyo por MAC+tiempo).
-- Clave de instalador tras `reset_installer_key`: `123456`.
+- PIN de instalador (fábrica / tras `reset_installer_key`): `654321`.
+- PIN de administrador (fábrica / tras `reset_admin_key`): `123456`.
 - Broker: `broker.hivemq.com` (MQTT 1883 / TLS 8883 / WSS 8884).

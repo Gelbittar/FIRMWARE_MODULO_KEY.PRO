@@ -34,7 +34,13 @@
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.2.0"
+#define FIRMWARE_VERSION "2.3.0"
+
+#define PIN_LEN 6
+#define DEFAULT_ADMIN_PIN "123456"
+#define DEFAULT_INSTALLER_PIN "654321"
+
+bool isPin6(String k);
 
 #define MAX_LOG_ENTRIES 100
 
@@ -224,11 +230,14 @@ void resetRateLimit() {
     }
 }
 
+int roleRank(String role) {
+    if (role == "master") return 3;
+    if (role == "installer") return 2;
+    return 1; // admin
+}
+
 bool hasRolePermission(String requiredRole, String userRole) {
-    if (userRole == "master") return true;
-    if (requiredRole == "admin" && (userRole == "admin" || userRole == "master")) return true;
-    if (requiredRole == "installer" && (userRole == "installer" || userRole == "admin" || userRole == "master")) return true;
-    return false;
+    return roleRank(userRole) >= roleRank(requiredRole);
 }
 
 void writeEEPROM(unsigned int eeaddress, byte *data, int length) {
@@ -625,7 +634,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
 
     if (action == "open") {
-        if (!hasRolePermission("admin", role)) {
+        if (!hasRolePermission("installer", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -681,7 +690,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
 
     if (action == "reset_wifi") {
-        if (!hasRolePermission("admin", role)) {
+        if (!hasRolePermission("installer", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -842,7 +851,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         }
     }
     else if (action == "clear_slot") {
-        if (!hasRolePermission("admin", role)) {
+        if (!hasRolePermission("installer", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -860,7 +869,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         }
     }
     else if (action == "set_relay") {
-        if (!hasRolePermission("admin", role)) {
+        if (!hasRolePermission("installer", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -910,7 +919,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         ocClearAll();
     }
     else if (action == "get_logs") {
-        if (!hasRolePermission("admin", role)) {
+        if (!hasRolePermission("installer", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -1002,7 +1011,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             ("{\"status\":\"OK\",\"message\":\"Apto updated\",\"slot\":" + String(slot) + ",\"apto\":\"" + apto + "\"}").c_str());
     }
     else if (action == "get_slots") {
-        if (!hasRolePermission("installer", role)) {
+        if (!hasRolePermission("admin", role)) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
@@ -1089,15 +1098,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid target role\"}");
             return;
         }
-        bool allowed = (role == "master") ||
-                       (role == "admin") ||
-                       (role == "installer" && targetRole == "installer");
-        if (!allowed) {
+        if (role != "master" && role != "installer") {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
         String newKey = doc["key"] | "";
-        if (newKey.length() >= 16 && isSafeKey(newKey)) {
+        if (isPin6(newKey)) {
             preferences.begin("geylca_sec", false);
             if (targetRole == "admin") {
                 adminKey = newKey;
@@ -1110,36 +1116,57 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             String keyResp = "{\"status\":\"OK\",\"message\":\"" + targetRole + " key updated\"}";
             mqttClient.publish(getTopic("status_resp").c_str(), keyResp.c_str());
         } else {
-            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid role or key (min 16 alphanumeric chars)\"}");
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid PIN (must be 6 digits)\"}");
         }
         return;
     }
-    else if (action == "reset_installer_key" && role == "master") {
-        installerKey = "123456";
+    else if (action == "reset_admin_key") {
+        if (!hasRolePermission("installer", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        adminKey = String(DEFAULT_ADMIN_PIN);
+        preferences.begin("geylca_sec", false);
+        preferences.putString("key_admin", adminKey);
+        preferences.end();
+        String resetResp = "{\"status\":\"OK\",\"message\":\"Admin PIN reset to " + String(DEFAULT_ADMIN_PIN) + "\",\"key\":\"" + String(DEFAULT_ADMIN_PIN) + "\"}";
+        mqttClient.publish(getTopic("status_resp").c_str(), resetResp.c_str());
+        return;
+    }
+    else if (action == "reset_installer_key") {
+        if (!hasRolePermission("installer", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        installerKey = String(DEFAULT_INSTALLER_PIN);
         preferences.begin("geylca_sec", false);
         preferences.putString("key_installer", installerKey);
         preferences.end();
-        String resetResp = "{\"status\":\"OK\",\"message\":\"Installer key reset to 123456\",\"key\":\"123456\"}";
+        String resetResp = "{\"status\":\"OK\",\"message\":\"Installer PIN reset to " + String(DEFAULT_INSTALLER_PIN) + "\",\"key\":\"" + String(DEFAULT_INSTALLER_PIN) + "\"}";
         mqttClient.publish(getTopic("status_resp").c_str(), resetResp.c_str());
         return;
     }
     else if (action == "get_role_keys") {
-        bool isMaster = (role == "master");
-        bool isAdmin = (role == "admin");
-        if (!isMaster && !isAdmin && role != "installer") {
+        if (role != "master" && role != "installer") {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
             return;
         }
         String keysResp = "{";
-        if (isMaster) {
+        if (role == "master") {
             keysResp += "\"master\":\"" + deviceSecret + "\",";
         }
-        if (isMaster || isAdmin) {
-            keysResp += "\"admin\":\"" + adminKey + "\",";
-        }
+        keysResp += "\"admin\":\"" + adminKey + "\",";
         keysResp += "\"installer\":\"" + installerKey + "\"}";
         mqttClient.publish(getTopic("status_resp").c_str(), keysResp.c_str());
     }
+}
+
+bool isPin6(String k) {
+    if (k.length() != 6) return false;
+    for (unsigned int i = 0; i < k.length(); i++) {
+        if (k.charAt(i) < '0' || k.charAt(i) > '9') return false;
+    }
+    return true;
 }
 
 bool isSafeKey(String k) {
@@ -1358,6 +1385,16 @@ void setup() {
     }
     adminKey = preferences.getString("key_admin", "");
     installerKey = preferences.getString("key_installer", "");
+    if (!isPin6(adminKey)) {
+        adminKey = String(DEFAULT_ADMIN_PIN);
+        Serial.println("[SYS] PIN admin normalizado a 123456 (formato previo incompatible).");
+    }
+    if (!isPin6(installerKey)) {
+        installerKey = String(DEFAULT_INSTALLER_PIN);
+        Serial.println("[SYS] PIN instalador normalizado a 654321 (formato previo incompatible).");
+    }
+    preferences.putString("key_admin", adminKey);
+    preferences.putString("key_installer", installerKey);
     preferences.end();
 
     pinMode(PIN_RELAY, OUTPUT);

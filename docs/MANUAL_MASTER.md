@@ -41,11 +41,15 @@ La consola maestra opera el módulo seleccionado con el rol **Master** (firma co
 | **Logs** | Solicita los registros recientes |
 | **Info** | Pide versión de firmware / datos del dispositivo |
 | **OTA** | Actualiza el firmware por aire (ver abajo) |
-| **Rol** | Asigna o cambia la clave de un rol (admin/instalador); el instalador solo puede cambiarse a sí mismo |
-| **Reset** | Restablece la clave de instalador del módulo a `123456` (enviado firmado como master); luego admin/instalador puede cambiarla desde la app operador |
+| **Rol** | Asigna o cambia el **PIN (6 dígitos)** de un rol (admin/instalador) |
+| **Reset** | Restablece el **PIN de instalador** del módulo a `654321` (fábrica; se envía firmado como master); luego se puede cambiar desde la app operador |
 | **Wipe** | Borra todas las casillas del módulo (pide confirmación) |
 
-También hay un acceso directo **Reset clave instalador a 123456** en Config del módulo seleccionado.
+En **Config → PINs de Roles** del módulo seleccionado también se puede:
+
+- Cambiar el PIN de **admin** o de **instalador** (exactamente 6 dígitos).
+- **Reset PIN instalador a 654321** (fábrica del instalador).
+- **Reset PIN admin a 123456** (fábrica del administrador) — botón nuevo.
 
 ## OTA (actualización por aire)
 

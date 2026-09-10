@@ -12,29 +12,29 @@ Interfaz para **instaladores y administradores** de módulos GEYLCA: operar un m
 
 ## Roles (operador)
 
-Esta app permite entrar con los roles **Admin** e **Installer** (la clave maestra se usa solo en la app Master).
+Esta app permite entrar con los roles **Admin** e **Instalador** (la clave maestra se usa solo en la app Master). Jerarquía: **master > instalador > admin**.
 
-- **Admin** — administra llaves y casillas (abrir, agregar, suspender, aprender llaves, configurar relé) y las claves de roles.
-- **Installer** — solo puede programar/grabar llaves; también puede rotar su propia clave de instalador.
+- **Instalador** — acceso operativo completo (abrir, agregar/borrar casillas, aprender llaves, suspender, logs, relé, reset WiFi) y **gestión de PINs**: cambiar el PIN admin, cambiar su propio PIN y resetear el admin a fábrica (`123456`).
+- **Admin** — puede abrir para mantenimiento puntual, consultar casillas y **suspender/activar** casillas. No gestiona PINs: la pestaña **Roles**, **Logs** y **Consola** le quedan ocultas, y los botones que su rol no permite no se muestran.
 
-El login usa **una sola clave de rol** (admin o instalador). El módulo la valida con HMAC sobre `acción + timestamp` y responde cuál rol le corresponde; si la clave es del rol **master**, la app lo rechaza y avisa que se use la app Master.
+El login usa **un PIN de rol de 6 dígitos** (admin o instalador). El módulo lo valida con HMAC sobre `acción + timestamp` y responde cuál rol le corresponde; si el PIN es del rol **master**, la app lo rechaza y avisa que se use la app Master.
 
 ## Primer uso (wizard)
 
 1. Abrir la app por primera vez → pantalla de **Data Cruda**.
 2. Pegar la data cruda copiada de la pestaña **Pairing** del módulo
    `{"device_id":"...","secret":"..."}` y pulsar **Guardar y continuar**.
-3. Crear la **clave de instalador** (mínimo 16 caracteres alfanuméricos) o pulsar **Generar** para autocompletar, y pulsar **Guardar clave instalador** (se envía al módulo firmada como master).
-4. Pasa a la pantalla de **login**: ingresar la clave de instalador (o la de un administrador si ya existe) para identificar su rol.
+3. Crear el **PIN de instalador** (6 dígitos) o pulsar **Generar** para autocompletar, y pulsar **Guardar clave instalador** (se envía al módulo firmada como master).
+4. Pasa a la pantalla de **login**: ingresar el PIN de instalador (o el de un administrador si ya existe) para identificar su rol.
 
 > El dispositivo queda configurado para ese módulo. Con **Configurar otro módulo** se pasa otro módulo o se repite el wizard.
 
 ## Login y detección de rol
 
-- Escriba su clave de rol (la que le dio el instalador/admin de la obra) y pulse **Ingresar**.
+- Escriba su **PIN de 6 dígitos** (el que le dio el instalador/admin de la obra) y pulse **Ingresar**.
 - El módulo responde "Role verified" con el rol: **Administrador** o **Instalador**, y la app muestra solo las funciones de ese rol.
-- Si la clave pertenece al rol **master**, se muestra un aviso: use esa clave en la app **GEYLCA Master**.
-- Si la clave no corresponde al módulo configurado, se vuelve al login con un error.
+- Si el PIN pertenece al rol **master**, se muestra un aviso: use esa clave en la app **GEYLCA Master**.
+- Si el PIN no corresponde al módulo configurado, se vuelve al login con un error.
 
 ## Pestañas
 
@@ -42,21 +42,26 @@ El login usa **una sola clave de rol** (admin o instalador). El módulo la valid
 |---|---|
 | **Dashboard** | Estado del broker, total/libres de casillas, modo de seguridad, abrir puerta, eventos recientes |
 | **Slots** | Agregar/editar casillas, aprender llave, buscar casilla libre, consultar todas las casillas |
-| **Roles** | Ver estado de las claves (`get_role_keys`) y cambiar la clave de instalador; el administrador también puede cambiar la clave de admin. El instalador solo ve la tarjeta de instalador |
-| **Logs** | Solicitar registros del módulo |
-| **Consola** | Tráfico MQTT TX/RX en vivo, útil para depurar |
+| **Roles** | (solo instalador) Ver estado de las claves (`get_role_keys`), cambiar el PIN de admin, **Reset PIN admin a 123456** y cambiar el PIN de instalador. El admin no ve esta pestaña |
+| **Logs** | Solicitar registros del módulo (solo instalador) |
+| **Consola** | Tráfico MQTT TX/RX en vivo, útil para depurar (solo instalador) |
 
 (Config, Pairing y la pestaña Master son de la app **GEYLCA Master**.)
 
 ## Claves de roles
 
-En **Roles** quien tenga permiso puede:
+En **Roles** (instalador) se puede:
 
-- Pulsar **Ver estado de claves**: el módulo responde si cada rol tiene clave configurada (por rol, según el que inicie sesión).
-- Generar/cambiar la clave de **administrador** (solo admin; mínimo 16 caracteres alfanuméricos, `-` y `_` permitidos).
-- Generar/cambiar la clave de **instalador** (admin o instalador).
+- Pulsar **Ver estado de claves**: el módulo responde qué PINs están configurados (admin/instalador para el instalador).
+- Cambiar o **resetear el PIN de administrador** (botón **Reset PIN admin a 123456**). Como el PIN admin se cambia solo con rol instalador o master, un instalador puede bloquear al admin; el reset devuelve `123456`.
+- Cambiar el **PIN de instalador**.
 
-Cada rol usa su clave como secreto HMAC; si se cambia la clave de un rol, ese rol debe iniciar sesión con la clave nueva.
+Los PINs son de **exactamente 6 dígitos numéricos**. Cada rol usa su PIN como secreto HMAC; si se cambia un PIN, ese rol debe iniciar sesión con el PIN nuevo.
+
+## Interfaz móvil
+
+- La app está rediseñada para uso **vertical en celular**: tema oscuro con acento degradado cian→verde, tira de navegación fija abajo con iconos (botones ≥ 52 px), y las tablas (eventos, logs, casillas) se muestran como **tarjetas** con etiquetas por campo.
+- Lo que el rol no permite se **oculta** (no solo se deshabilita): p. ej. el admin no ve el botón "ABRIR PUERTA" ni las pestañas Roles/Logs/Consola.
 
 ## fallas reales y soluciones
 
