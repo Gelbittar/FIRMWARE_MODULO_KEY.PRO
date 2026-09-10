@@ -49,6 +49,11 @@ main{flex:1;overflow:auto;padding:1rem;max-width:1200px;width:100%;margin:0 auto
 .login-box textarea:focus{border-color:var(--accent)}
 .login-box .accent{background:var(--accent);color:#000;border:none;border-radius:4px;padding:.55rem;width:100%;font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:.2rem}
 .login-box .accent:hover{filter:brightness(1.15)}
+.login-box .row{display:flex;gap:.5rem;align-items:center}
+.login-box .row .btn{width:auto;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem .8rem}
+.login-box .row .btn:hover{border-color:var(--accent);color:var(--accent)}
+.login-box .module-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;border:1px solid var(--border);border-radius:4px;padding:.5rem .7rem}
+.login-box .module-row button{width:auto}
 .login-divider{display:flex;align-items:center;margin:.8rem 0;color:var(--text);opacity:.45;font-size:.75rem;gap:.6rem}
 .login-divider::before,.login-divider::after{content:"";flex:1;height:1px;background:var(--border)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
@@ -145,23 +150,33 @@ tr:hover td{background:rgba(0,180,216,.04)}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
-    <h2>GEYLCA Access Control</h2>
+    <h2>GEYLCA Master</h2>
     <div id="loginErr" class="err"></div>
-    <label for="rawDataInput">Pegar Data Cruda del Módulo (más rápido)</label>
-    <textarea id="rawDataInput" rows="2" placeholder='{"device_id":"modulo01","secret":"AB12...DEF"}'></textarea>
-    <button id="btnParseRaw" class="accent">Cargar Data Cruda</button>
-    <div class="login-divider"><span>o ingrese manualmente</span></div>
-    <label for="loginDeviceId">Device ID</label>
-    <input id="loginDeviceId" type="text" placeholder="e.g. geylca_001" autocomplete="off">
-    <label for="loginSecret">Clave del Rol (HMAC secret)</label>
-    <input id="loginSecret" type="password" placeholder="Clave para el rol seleccionado" autocomplete="off">
-    <label for="loginRole">Role</label>
-    <select id="loginRole">
-      <option value="master">Master</option>
-      <option value="admin">Admin</option>
-      <option value="installer">Installer</option>
-    </select>
-    <button id="loginBtn">Connect</button>
+
+    <div id="passView">
+      <p id="passModeText" style="font-size:.8rem;opacity:.8;margin-bottom:.8rem"></p>
+      <label for="masterPassInput">Clave de esta app</label>
+      <input id="masterPassInput" type="password" placeholder="Clave" autocomplete="off">
+      <button id="btnSetPass" style="display:none">Crear clave</button>
+      <button id="btnUnlock" style="display:none">Desbloquear</button>
+    </div>
+
+    <div id="moduleView" style="display:none">
+      <div id="moduleListArea">
+        <p id="moduleViewInfo" style="font-size:.8rem;opacity:.8;margin-bottom:.8rem"></p>
+        <div id="moduleSelectList"></div>
+        <div class="login-divider"><span>agregar otro módulo</span></div>
+        <button id="btnAddModuleWiz" class="accent">+ Agregar módulo con Data Cruda</button>
+      </div>
+      <div id="moduleAddArea" style="display:none">
+        <label for="moduleAddRaw">Data Cruda del módulo</label>
+        <textarea id="moduleAddRaw" rows="3" placeholder='{"device_id":"mod_...","secret":"..."}'></textarea>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn" id="btnModuleAddCancel">Cancelar</button>
+          <button class="btn accent" id="btnModuleAddSave">Agregar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -172,6 +187,7 @@ tr:hover td{background:rgba(0,180,216,.04)}
 <span class="spacer"></span>
     <span id="moduleBadge" class="status-tag wait">VERIFICANDO</span>
     <span id="connStatus" class="conn-dot off" title="Desconectado"></span>
+    <button id="btnSwitchModule">Cambiar módulo</button>
     <button id="btnDisconnect">Disconnect</button>
   </header>
 
@@ -311,6 +327,9 @@ tr:hover td{background:rgba(0,180,216,.04)}
           <button class="btn" id="btnGetRoleKeys">Mostrar claves actuales</button>
           <span id="roleKeysDisplay" style="font-size:.75rem;opacity:.7;word-break:break-all"></span>
         </div>
+        <div class="btn-row">
+          <button class="btn danger" id="btnResetInstaller">Reset clave instalador a 123456</button>
+        </div>
       </div>
       <div class="card">
         <h3>Mantenimiento</h3>
@@ -436,7 +455,7 @@ let moduleStateKnown = false;
 let lastModuleSeen = 0;
 let announcedOnline = false;
 
-const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys"],admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
+const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys","reset_installer_key"],admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
 
 function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
 
@@ -504,13 +523,22 @@ function hmacSHA256Hex(msg,key){
 }
 function s2b(hex){const a=[];for(let i=0;i<hex.length;i+=2)a.push(parseInt(hex.substr(i,2),16));return a;}
 
-function makeMsg(action,extra){
+function buildAction(action,extra){
   const ts=Math.floor(Date.now()/1000);
-  const payload={action:action,role:currentRole,timestamp:ts,...(extra||{})};
   return computeHMAC(action+ts,deviceSecret).then(token=>{
-    payload.token=token;
-    return payload;
+    return {...(extra||{}),action:action,role:currentRole,timestamp:ts,token:token};
   });
+}
+
+function makeMsg(action,extra){
+  return buildAction(action,extra);
+}
+
+function randKey(len){
+  const chars="ABCDEF0123456789";
+  let s="";
+  for(let i=0;i<len;i++)s+=chars[Math.floor(Math.random()*16)];
+  return s;
 }
 
 function sanitize(s){
@@ -843,7 +871,10 @@ function processEvent(msg){
 
   if(d.master!==undefined){
     const disp=document.getElementById("roleKeysDisplay");
-    if(disp)disp.textContent="Instalador: "+(d.installer||"no configurada")+" | Admin: "+(d.admin||"no configurada")+" | Master: "+(d.master||"")+"";
+    if(disp){
+      let hk="Maestro: "+(d.master?"configurada":"no configurada")+" &nbsp;·&nbsp; Admin: "+(d.admin?"configurada":"no configurada")+" &nbsp;·&nbsp; Instalador: "+(d.installer?"configurada":"no configurada");
+      disp.innerHTML=hk;
+    }
     toast("Claves recibidas","info");
     setWaiting(false);
     return;
@@ -1050,60 +1081,150 @@ function connectMQTT(){
   client.on("reconnect",()=>{setConnState("connecting");document.getElementById("statConn").textContent="RECONECTANDO";document.getElementById("statConn").className="value warn"});
 }
 
-function parseRawData(){
-  const val=document.getElementById("rawDataInput").value.trim();
-  const errEl=document.getElementById("loginErr");
-  if(!val){errEl.textContent="Pegue la data cruda (JSON del módulo) o escanee el QR.";errEl.style.display="block";return;}
-  let data=null;
-  try{
-    data=JSON.parse(val);
-  }catch(e){
-    const m=val.match(/"device_id"\s*:\s*"([^"]+)"/);
-    const s=val.match(/"secret"\s*:\s*"([^"]+)"/);
-    if(m&&s){data={device_id:m[1],secret:s[1]};}
-    else{errEl.textContent="No se pudo interpretar la data. Debe ser tipo: {\"device_id\":\"...\",\"secret\":\"...\"}";errEl.style.display="block";return;}
-  }
-  const id=data.device_id||data.deviceId;
-  const sec=data.secret;
-  if(!id||!sec){errEl.textContent="La data no contiene device_id o secret.";errEl.style.display="block";return;}
-  document.getElementById("loginDeviceId").value=id.trim();
-  document.getElementById("loginSecret").value=sec.trim();
-  document.getElementById("loginRole").value="master";
+function setLoginView(v){
+  document.getElementById("passView").style.display=v==="pass"?"":"none";
+  document.getElementById("moduleView").style.display=v==="module"?"":"none";
   document.getElementById("loginErr").style.display="none";
-  localStorage.setItem("geylca_deviceId",id.trim());
-  localStorage.setItem("geylca_secret_"+id.trim()+"_master",sec.trim());
-  toast("Data cargada. Ahora presione Conectar.","success");
 }
 
-function doLogin(){
-  const did=document.getElementById("loginDeviceId").value.trim();
-  const sec=document.getElementById("loginSecret").value.trim();
-  const role=document.getElementById("loginRole").value;
+function getPassInfo(){
+  try{return JSON.parse(localStorage.getItem("geylca_masterpass")||"null")}catch(e){return null}
+}
+
+function passHash(salt,pass){
+  return sha256(strBytes(salt+"|"+pass));
+}
+
+function initMasterFlow(){
+  const info=getPassInfo();
+  const bt=document.getElementById("passModeText");
+  const inp=document.getElementById("masterPassInput");
+  const setBtn=document.getElementById("btnSetPass");
+  const unlBtn=document.getElementById("btnUnlock");
+  inp.value="";
+  if(info&&info.salt&&info.hash){
+    bt.textContent="Ingrese la clave de esta app para continuar.";
+    setBtn.style.display="none";
+    unlBtn.style.display="";
+    setLoginView("pass");
+  }else{
+    bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. La clave no se sube a ningún servidor.";
+    setBtn.style.display="";
+    unlBtn.style.display="none";
+    setLoginView("pass");
+  }
+}
+
+function createPass(){
+  const v=document.getElementById("masterPassInput").value;
   const errEl=document.getElementById("loginErr");
-  if(!did){errEl.textContent="Ingrese el Device ID";errEl.style.display="block";return}
-  if(!sec){errEl.textContent="Ingrese la clave del rol (secret)";errEl.style.display="block";return}
+  if(!v||v.length<4){errEl.textContent="La clave debe tener al menos 4 caracteres.";errEl.style.display="block";return;}
+  const salt=randKey(24);
+  localStorage.setItem("geylca_masterpass",JSON.stringify({salt:salt,hash:passHash(salt,v)}));
   errEl.style.display="none";
-  deviceId=did;
-  deviceSecret=sec;
-  currentRole=role;
+  document.getElementById("masterPassInput").value="";
+  toast("Clave creada. Bienvenido a GEYLCA Master.","success");
+  showModuleSelect();
+}
+
+function unlockApp(){
+  const v=document.getElementById("masterPassInput").value;
+  const info=getPassInfo();
+  const errEl=document.getElementById("loginErr");
+  if(!info||!info.salt||!info.hash){errEl.textContent="No hay clave configurada.";errEl.style.display="block";return;}
+  if(passHash(info.salt,v)!==info.hash){
+    errEl.textContent="Clave incorrecta. Inténtelo de nuevo.";
+    errEl.style.display="block";
+    return;
+  }
+  errEl.style.display="none";
+  document.getElementById("masterPassInput").value="";
+  toast("Desbloqueado.","success");
+  showModuleSelect();
+}
+
+function showModuleSelect(){
+  loadMasterRegistry();
+  renderModuleSelect();
+  document.getElementById("moduleAddArea").style.display="none";
+  document.getElementById("moduleListArea").style.display="";
+  setLoginView("module");
+}
+
+function renderModuleSelect(){
+  const listEl=document.getElementById("moduleSelectList");
+  const infoEl=document.getElementById("moduleViewInfo");
+  if(!masterModules.length){
+    infoEl.textContent="Sin módulos registrados en esta app. Agregue uno con la Data Cruda del módulo.";
+    listEl.innerHTML='<p class="empty-msg">No hay módulos todavía.</p>';
+    return;
+  }
+  infoEl.textContent="Seleccione el módulo a leer/operar:";
+  listEl.innerHTML=masterModules.map((m,i)=>
+    '<div class="module-row"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.9rem">'+escHtml(m.alias||m.deviceId)+'</div><div class="master-cell-id">'+escHtml(m.deviceId)+'</div></div>'+
+    '<button class="btn accent" onclick="GEYLCA.selectModule('+i+')">Operar</button></div>'
+  ).join("");
+}
+
+function activateModule(i){
+  const m=masterModules[i];
+  if(!m){toast("Módulo no registrado","error");return;}
+  deviceId=m.deviceId;
+  deviceSecret=m.secret;
+  currentRole="master";
   announcedOnline=false;
   moduleStateKnown=false;
-  const lb=document.getElementById("loginBtn");
-  lb.textContent="Conectando al broker...";
-  lb.disabled=true;
-  localStorage.setItem("geylca_deviceId",did);
-  localStorage.setItem("geylca_secret_"+did+"_"+role,sec);
-  localStorage.setItem("geylca_role",role);
+  localStorage.setItem("geylca_selected_module",m.deviceId);
   document.getElementById("loginOverlay").style.display="none";
   document.getElementById("appContainer").style.display="flex";
-  document.getElementById("headerDevice").textContent="Device: "+did;
-  document.getElementById("pairDeviceId").textContent=did;
-  if(role!=="master"){document.getElementById("navConfig").style.display="none";document.getElementById("navPairing").style.display="none"}
-  else{document.getElementById("navConfig").style.display="";document.getElementById("navPairing").style.display=""}
-  document.getElementById("navMaster").style.display=(role==="master")?"":"none";
-  loadMasterRegistry();
+  document.getElementById("headerDevice").textContent="Device: "+deviceId;
+  document.getElementById("pairDeviceId").textContent=deviceId;
+  document.getElementById("navConfig").style.display="";
+  document.getElementById("navPairing").style.display="";
+  document.getElementById("navMaster").style.display="";
+  document.getElementById("moduleBadge").className="status-tag wait";
+  document.getElementById("moduleBadge").textContent="VERIFICANDO";
   renderMaster();
   connectMQTT();
+}
+
+function showModuleAdd(){
+  document.getElementById("moduleAddRaw").value="";
+  document.getElementById("moduleListArea").style.display="none";
+  document.getElementById("moduleAddArea").style.display="";
+}
+
+function backToModuleList(){
+  document.getElementById("moduleAddArea").style.display="none";
+  document.getElementById("moduleListArea").style.display="";
+}
+
+function addModuleWiz(){
+  const raw=document.getElementById("moduleAddRaw").value.trim();
+  const errEl=document.getElementById("loginErr");
+  if(!raw){errEl.textContent="Pegue la data cruda del módulo.";errEl.style.display="block";return;}
+  let did="",sec="";
+  try{const o=JSON.parse(raw);did=o.device_id||o.deviceId||"";sec=o.secret||"";}
+  catch(e){const a=raw.match(/"device_id"\s*:\s*"([^"]+)"/),b=raw.match(/"secret"\s*:\s*"([^"]+)"/);if(a&&b){did=a[1];sec=b[1];}}
+  if(!did||!sec){errEl.textContent="Data inválida: falta device_id o secret.";errEl.style.display="block";return;}
+  if(masterModules.find(x=>x.deviceId===did)){errEl.textContent="Ese módulo ya está en el registro.";errEl.style.display="block";return;}
+  errEl.style.display="none";
+  masterModules.push({deviceId:did,secret:sec,alias:did});
+  saveMasterRegistry();
+  renderMaster();
+  showModuleSelect();
+  toast("Módulo agregado: "+did,"success");
+}
+
+function goToModuleSelect(){
+  try{if(client){client.end(true);client=null}}catch(e){}
+  setConnState("off");
+  setModuleState("noresp");
+  if(statusInterval){clearInterval(statusInterval);statusInterval=null}
+  eventBuffer=[];logBuffer=[];slotData={};
+  renderEvents();renderLogs();
+  document.getElementById("appContainer").style.display="none";
+  showModuleSelect();
 }
 
 function showSlotsSub(name){
@@ -1126,14 +1247,7 @@ function initTabs(){
 }
 
 function restoreSession(){
-  const did=localStorage.getItem("geylca_deviceId");
-  const role=localStorage.getItem("geylca_role")||"master";
-  const sec=localStorage.getItem("geylca_secret_"+did+"_"+role);
-  if(did&&sec){
-    document.getElementById("loginDeviceId").value=did;
-    document.getElementById("loginSecret").value=sec;
-    document.getElementById("loginRole").value=role;
-  }
+  initMasterFlow();
 }
 
 window.GEYLCA=window.GEYLCA||{};
@@ -1235,6 +1349,7 @@ function renderMaster(){
         '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'info\')">Info</button>'+
         '<button class="btn accent" onclick="GEYLCA.masterAct('+i+',\'ota\')">OTA</button>'+
         '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'role\')">Rol</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'reset\')">Reset</button>'+
         '<button class="btn danger" onclick="GEYLCA.masterAct('+i+',\'wipe\')">Wipe</button>'+
         '<button class="btn danger" title="Quitar del registro" onclick="GEYLCA.masterAct('+i+',\'remove\')">X</button>'+
       '</div></td></tr>';
@@ -1266,6 +1381,9 @@ function masterAct(i,kind){
     case "info":masterCmd(i,"get_device_info",null,"Solicitando info de "+dev);break;
     case "ota":masterOTA(i);break;
     case "role":masterSetRole(i);break;
+    case "reset":
+      masterModal("Reset de clave instalador en "+dev+" a '123456'",[],()=>masterCmd(i,"reset_installer_key",null,"Clave instalador de "+dev+" reseteada a 123456"),"Resetear");
+      break;
     case "wipe":
       masterModal("Borrar TODAS las casillas de "+dev,[],()=>masterCmd(i,"wipe_slots",null,"Borrando casillas de "+dev+"..."),"Borrar todo");
       break;
@@ -1318,7 +1436,7 @@ function masterSetRole(i){
     res=>{
       const role=res.role||"admin";
       if(!res.key||res.key.length<16){toast("Clave demasiado corta","error");return;}
-      masterCmd(i,"set_role_key",{role:role,key:res.key},"Clave de "+role+" enviada a "+m.deviceId);
+      masterCmd(i,"set_role_key",{target_role:role,key:res.key},"Clave de "+role+" enviada a "+m.deviceId);
     },"Enviar");
 }
 function masterOTA(i){
@@ -1379,26 +1497,22 @@ function handleMasterMessage(devT,suffix,payload){
 }
 window.GEYLCA.masterAct=masterAct;
 window.GEYLCA.masterAdd=masterAdd;
+window.GEYLCA.selectModule=activateModule;
 
 function initEvents(){
-  document.getElementById("loginBtn").addEventListener("click",doLogin);
-  document.getElementById("btnParseRaw").addEventListener("click",parseRawData);
-  document.getElementById("rawDataInput").addEventListener("keydown",e=>{if(e.key==="Enter")parseRawData()});
-  document.getElementById("loginDeviceId").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("loginSecret").focus()});
-  document.getElementById("loginSecret").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
-  document.getElementById("btnDisconnect").addEventListener("click",()=>{
-    if(client){client.end(true);client=null}
-    setConnState("off");
-    setModuleState("noresp");
-    if(statusInterval){clearInterval(statusInterval);statusInterval=null}
-    document.getElementById("loginOverlay").style.display="flex";
-    document.getElementById("appContainer").style.display="none";
-    const lb=document.getElementById("loginBtn");
-    lb.disabled=false;
-    lb.textContent="Connect";
-    eventBuffer=[];logBuffer=[];slotData={};
-    renderEvents();renderLogs();
+  document.getElementById("btnSetPass").addEventListener("click",createPass);
+  document.getElementById("btnUnlock").addEventListener("click",unlockApp);
+  document.getElementById("masterPassInput").addEventListener("keydown",e=>{
+    if(e.key!=="Enter")return;
+    const info=getPassInfo();
+    if(info&&info.salt&&info.hash)unlockApp();
+    else createPass();
   });
+  document.getElementById("btnDisconnect").addEventListener("click",goToModuleSelect);
+  document.getElementById("btnSwitchModule").addEventListener("click",goToModuleSelect);
+  document.getElementById("btnAddModuleWiz").addEventListener("click",showModuleAdd);
+  document.getElementById("btnModuleAddCancel").addEventListener("click",backToModuleList);
+  document.getElementById("btnModuleAddSave").addEventListener("click",addModuleWiz);
 
   document.getElementById("btnOpenDoor").addEventListener("click",()=>{
     if(!canDo("open"))return;
@@ -1492,13 +1606,6 @@ function initEvents(){
     setTimeout(()=>setWaiting(false),5000);
   });
 
-  function randKey(len){
-    const chars="ABCDEF0123456789";
-    let s="";
-    for(let i=0;i<len;i++)s+=chars[Math.floor(Math.random()*16)];
-    return s;
-  }
-
   document.getElementById("btnGenInstallerKey").addEventListener("click",()=>{
     document.getElementById("installerKeyInput").value=randKey(32);
     document.getElementById("btnSetInstallerKey").disabled=false;
@@ -1518,14 +1625,22 @@ function initEvents(){
   document.getElementById("btnSetInstallerKey").addEventListener("click",()=>{
     const k=document.getElementById("installerKeyInput").value.trim();
     if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
-    makeMsg("set_role_key",{role:"installer",key:k}).then(m=>publish(m));
+    makeMsg("set_role_key",{target_role:"installer",key:k}).then(m=>publish(m));
     toast("Guardando clave instalador...","info");
   });
   document.getElementById("btnSetAdminKey").addEventListener("click",()=>{
     const k=document.getElementById("adminKeyInput").value.trim();
     if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
-    makeMsg("set_role_key",{role:"admin",key:k}).then(m=>publish(m));
+    makeMsg("set_role_key",{target_role:"admin",key:k}).then(m=>publish(m));
     toast("Guardando clave admin...","info");
+  });
+
+  document.getElementById("btnResetInstaller").addEventListener("click",()=>{
+    if(!canDo("reset_installer_key"))return;
+    showModal("Reset de clave instalador","La clave del instalador de este módulo volverá a <b>123456</b> (para eso se enviará con la firma de master). Luego el admin/instalador podrá cambiarla desde la app operador.",()=>{
+      makeMsg("reset_installer_key").then(m=>publish(m));
+      toast("Reset de clave instalador enviado","info");
+    },"Resetear");
   });
 
   document.getElementById("btnGetRoleKeys").addEventListener("click",()=>{

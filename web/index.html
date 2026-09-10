@@ -49,6 +49,11 @@ main{flex:1;overflow:auto;padding:1rem;max-width:1200px;width:100%;margin:0 auto
 .login-box textarea:focus{border-color:var(--accent)}
 .login-box .accent{background:var(--accent);color:#000;border:none;border-radius:4px;padding:.55rem;width:100%;font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:.2rem}
 .login-box .accent:hover{filter:brightness(1.15)}
+.login-box .row{display:flex;gap:.5rem;align-items:center}
+.login-box .row .btn{width:auto;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem .8rem}
+.login-box .row .btn:hover{border-color:var(--accent);color:var(--accent)}
+.login-box .module-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;border:1px solid var(--border);border-radius:4px;padding:.5rem .7rem}
+.login-box .module-row button{width:auto}
 .login-divider{display:flex;align-items:center;margin:.8rem 0;color:var(--text);opacity:.45;font-size:.75rem;gap:.6rem}
 .login-divider::before,.login-divider::after{content:"";flex:1;height:1px;background:var(--border)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
@@ -144,20 +149,42 @@ tr:hover td{background:rgba(0,180,216,.04)}
   <div class="login-box">
     <h2>GEYLCA Access Control</h2>
     <div id="loginErr" class="err"></div>
-    <label for="rawDataInput">Pegar Data Cruda del Módulo (más rápido)</label>
-    <textarea id="rawDataInput" rows="2" placeholder='{"device_id":"modulo01","secret":"AB12...DEF"}'></textarea>
-    <button id="btnParseRaw" class="accent">Cargar Data Cruda</button>
-    <div class="login-divider"><span>o ingrese manualmente</span></div>
-    <label for="loginDeviceId">Device ID</label>
-    <input id="loginDeviceId" type="text" placeholder="e.g. geylca_001" autocomplete="off">
-    <label for="loginSecret">Clave del Rol (HMAC secret)</label>
-    <input id="loginSecret" type="password" placeholder="Clave para el rol seleccionado" autocomplete="off">
-    <label for="loginRole">Role</label>
-    <select id="loginRole">
-      <option value="admin">Admin</option>
-      <option value="installer">Installer</option>
-    </select>
-    <button id="loginBtn">Connect</button>
+
+    <div id="wizardView">
+      <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Configuración inicial del módulo. Se realiza <b>una sola vez</b> por instalación de la app.</p>
+      <label for="rawDataInput">Data Cruda del Módulo</label>
+      <textarea id="rawDataInput" rows="2" placeholder='{"device_id":"modulo01","secret":"AB12...DEF"}'></textarea>
+      <button id="btnParseRaw" class="accent">Cargar Data Cruda</button>
+      <div class="login-divider"><span>o ingrese manualmente</span></div>
+      <label for="loginDeviceId">Device ID</label>
+      <input id="loginDeviceId" type="text" placeholder="e.g. geylca_001" autocomplete="off">
+      <label for="wizSecret">Secret maestro del módulo</label>
+      <input id="wizSecret" type="password" placeholder="Secret maestro" autocomplete="off">
+      <button id="btnWizardContinue">Guardar y continuar</button>
+    </div>
+
+    <div id="keyView" style="display:none">
+      <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Cree la clave del rol <b>instalador</b>. Es la que usará el instalador para ingresar a este módulo. Mínimo 16 caracteres.</p>
+      <label for="wizardInstallerKey">Nueva clave instalador</label>
+      <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+        <input id="wizardInstallerKey" type="text" placeholder="Clave (mín. 16)" autocomplete="off" style="margin-bottom:0;flex:1">
+        <button id="btnGenWizKey" style="width:auto;padding:.55rem .8rem;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer">Generar</button>
+      </div>
+      <div class="row" style="display:flex;gap:.5rem;justify-content:flex-end;margin-bottom:.2rem">
+        <button class="btn" id="btnBackToRaw">Atrás</button>
+        <button class="btn accent" id="btnSetWizKey">Guardar clave instalador</button>
+      </div>
+    </div>
+
+    <div id="loginView" style="display:none">
+      <p id="loginModuleInfo" style="font-size:.8rem;opacity:.8;margin-bottom:.8rem"></p>
+      <label for="loginSecret">Clave de acceso (admin o instalador)</label>
+      <input id="loginSecret" type="password" placeholder="Su clave" autocomplete="off">
+      <button id="loginBtn">Ingresar</button>
+      <div class="row" style="display:flex;gap:.5rem;justify-content:center;margin-top:.6rem">
+        <button class="btn small" id="btnReconfigure">Configurar otro módulo</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -176,6 +203,7 @@ tr:hover td{background:rgba(0,180,216,.04)}
     <button data-tab="tabSlots">Slots</button>
     <button data-tab="tabConfig" id="navConfig" style="display:none">Config</button>
     <button data-tab="tabPairing" id="navPairing" style="display:none">Pairing</button>
+    <button data-tab="tabRoles">Roles</button>
     <button data-tab="tabLogs">Logs</button>
     <button data-tab="tabConsole">Consola</button>
   </nav>
@@ -339,6 +367,36 @@ tr:hover td{background:rgba(0,180,216,.04)}
       </div>
     </div>
 
+    <!-- Roles -->
+    <div id="tabRoles" class="tab">
+      <div class="card">
+        <h3>Claves de roles</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Cada rol usa una clave distinta como secreto HMAC para identificarse ante el módulo. Con esta pantalla se agrega un administrador y se modifica la clave del instalador. La clave del maestro solo se cambia desde la app GEYLCA Master.</p>
+        <div class="btn-row">
+          <button class="btn accent" id="btnGetRoleKeys">Ver estado de claves</button>
+        </div>
+        <div id="roleKeysDisplay" style="font-size:.78rem;margin-top:.4rem"></div>
+      </div>
+      <div class="card" id="adminRoleCard">
+        <h3>Administrador</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Agregar o cambiar la clave del rol admin. Si un instalador la cambia, requerirá redes de instalación. Solo el rol admin o maestro puede modificarla.</p>
+        <div class="form-row">
+          <div class="field"><label>Clave admin</label><input id="adminKeyInput" type="text" placeholder="Mínimo 16 caracteres"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn small" id="btnGenAdminKey">Generar</button></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetAdminKey" disabled>Guardar</button></div>
+        </div>
+      </div>
+      <div class="card" id="installerRoleCard">
+        <h3>Instalador</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Modificar la clave del rol instalador (admin o instalador pueden cambiarla).</p>
+        <div class="form-row">
+          <div class="field"><label>Clave instalador</label><input id="installerKeyInput" type="text" placeholder="Mínimo 16 caracteres"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn small" id="btnGenInstallerKey">Generar</button></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetInstallerKey" disabled>Guardar</button></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Logs -->
     <div id="tabLogs" class="tab">
       <div class="card">
@@ -391,6 +449,8 @@ let pendingProgKey = "";
 let progScanTimer = null;
 let deviceSecret = "";
 let currentRole = "admin";
+let pendingRoleVerify = null;
+let loginKeyTemp = "";
 let pendingResponse = null;
 let eventBuffer = [];
 let logBuffer = [];
@@ -411,9 +471,39 @@ let moduleStateKnown = false;
 let lastModuleSeen = 0;
 let announcedOnline = false;
 
-const roles = {admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
+const roles = {admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_role_key","get_role_keys"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info","set_role_key","get_role_keys"]};
 
 function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
+
+function sendStandalone(payload,timeoutMs){
+  return new Promise(resolve=>{
+    const done={over:false};
+    const cid="web_tmp_"+Math.random().toString(36).slice(2,10);
+    let cl=null;
+    const finish=res=>{
+      if(done.over)return;
+      done.over=true;
+      if(t)clearTimeout(t);
+      try{if(cl)cl.end(true)}catch(e){}
+      resolve(res);
+    };
+    let t=setTimeout(()=>finish({status:"TIMEOUT",message:"Sin respuesta del módulo"}),timeoutMs||12000);
+    try{
+      cl=mqtt.connect(MQTT_BROKER,{clientId:cid,clean:true,connectTimeout:8000,reconnectPeriod:0});
+    }catch(e){finish({status:"ERROR",message:"Error de conexión"});return;}
+    cl.on("connect",()=>{
+      cl.subscribe(topic("events"),{qos:1});
+      cl.subscribe(topic("status_resp"),{qos:1});
+      cl.publish(topic("cmd"),JSON.stringify(payload),{qos:1});
+    });
+    cl.on("message",(tp,msg)=>{
+      let d=null;
+      try{d=JSON.parse(msg.toString())}catch(e){return}
+      if(d&&(d.status==="OK"||d.status==="DENIED"||d.status==="GRANTED"||d.message==="Role verified"))finish(d);
+    });
+    cl.on("error",()=>finish({status:"ERROR",message:"Error de conexión"}));
+  });
+}
 
 async function computeHMAC(data,secret){
   if(crypto.subtle){
@@ -479,13 +569,15 @@ function hmacSHA256Hex(msg,key){
 }
 function s2b(hex){const a=[];for(let i=0;i<hex.length;i+=2)a.push(parseInt(hex.substr(i,2),16));return a;}
 
-function makeMsg(action,extra){
+function buildAction(action,extra){
   const ts=Math.floor(Date.now()/1000);
-  const payload={action:action,role:currentRole,timestamp:ts,...(extra||{})};
   return computeHMAC(action+ts,deviceSecret).then(token=>{
-    payload.token=token;
-    return payload;
+    return {...(extra||{}),action:action,role:currentRole,timestamp:ts,token:token};
   });
+}
+
+function makeMsg(action,extra){
+  return buildAction(action,extra);
 }
 
 function sanitize(s){
@@ -609,6 +701,8 @@ function setWaiting(waiting){
   document.getElementById("btnWipeSlots").disabled=waiting||!canDo("wipe_slots");
   document.getElementById("btnGetLogs").disabled=waiting||!canDo("get_logs");
   document.getElementById("btnGetRoleKeys").disabled=waiting||!canDo("get_role_keys");
+  document.getElementById("btnSetAdminKey").disabled=waiting||!canDo("set_role_key")||currentRole!=="admin";
+  document.getElementById("btnSetInstallerKey").disabled=waiting||!canDo("set_role_key");
   document.getElementById("btnScanProgs").disabled=waiting;
   if(waiting){
     document.getElementById("btnOpenDoor").innerHTML='<span class="spinner"></span>Espere...';
@@ -816,9 +910,15 @@ function processEvent(msg){
     return;
   }
 
-  if(d.master!==undefined){
+  if(d.admin!==undefined||d.installer!==undefined||d.master!==undefined){
     const disp=document.getElementById("roleKeysDisplay");
-    if(disp)disp.textContent="Instalador: "+(d.installer||"no configurada")+" | Admin: "+(d.admin||"no configurada")+" | Master: "+(d.master||"")+"";
+    if(disp){
+      let html="";
+      if(d.master!==undefined)html+="Maestro: "+(d.master?"configurada":"no configurada")+" &nbsp;·&nbsp; ";
+      if(d.admin!==undefined)html+="Admin: "+(d.admin?"configurada":"no configurada")+" &nbsp;·&nbsp; ";
+      if(d.installer!==undefined)html+="Instalador: "+(d.installer?"configurada":"no configurada");
+      disp.innerHTML=html;
+    }
     toast("Claves recibidas","info");
     setWaiting(false);
     return;
@@ -960,16 +1060,28 @@ function connectMQTT(){
     isOnline=true;
     document.getElementById("statConn").textContent="BROKER ONLINE";
     document.getElementById("statConn").className="value ok";
-    toast("Conectado al broker. Verificando módulo...","success");
     setWaiting(false);
-    armModuleCheck();
     const subs=[topic("events"),topic("status"),topic("status_resp"),topic("logs"),"geylca/+/prog/status","geylca/+/prog/events"];
     client.subscribe(subs,{qos:1},err=>{
       if(err)toast("Error suscripción","error");
     });
-    setTimeout(()=>{makeMsg("get_free_slots").then(m=>publish(m))},500);
-    if(statusInterval)clearInterval(statusInterval);
-    statusInterval=setInterval(()=>{if(client&&client.connected){makeMsg("get_free_slots").then(m=>publish(m))}},30000);
+    if(pendingRoleVerify&&pendingRoleVerify.status==="pending"){
+      pendingRoleVerify.status="sent";
+      toast("Identificando su rol...","info");
+      setTimeout(()=>{makeMsg("verify_role").then(m=>publish(m))},300);
+      pendingRoleVerify.timer=setTimeout(()=>{
+        if(pendingRoleVerify&&pendingRoleVerify.status==="sent"){
+          pendingRoleVerify=null;
+          toast("No se pudo identificar el rol. Verifique la clave ingresada.","error");
+          goToLogin();
+        }
+      },12000);
+    }else{
+      armModuleCheck();
+      setTimeout(()=>{makeMsg("get_free_slots").then(m=>publish(m))},500);
+      if(statusInterval)clearInterval(statusInterval);
+      statusInterval=setInterval(()=>{if(client&&client.connected){makeMsg("get_free_slots").then(m=>publish(m))}},30000);
+    }
   });
   client.on("message",(tp,msg)=>{
     let payload="";
@@ -986,6 +1098,20 @@ function connectMQTT(){
       try{st=String((JSON.parse(payload).status||"")).toUpperCase()}catch(e){st=payload.trim().toUpperCase()}
       if(st==="ONLINE")markModuleOnline();
     }else if(suffix==="events"||suffix==="status_resp"){
+      if(payload.indexOf("Role verified")>=0){
+        let vd=null;
+        try{vd=JSON.parse(payload)}catch(e){}
+        handleRoleVerified(vd);
+        return;
+      }
+      if(pendingRoleVerify&&payload.indexOf("\"DENIED\"")>=0){
+        if(pendingRoleVerify.timer)clearTimeout(pendingRoleVerify.timer);
+        pendingRoleVerify=null;
+        toast("Clave no válida para el módulo configurado.","error");
+        setWaiting(false);
+        goToLogin();
+        return;
+      }
       markModuleOnline();
       processEvent(payload);
     }else if(suffix==="logs"){
@@ -1016,10 +1142,38 @@ function connectMQTT(){
   client.on("reconnect",()=>{setConnState("connecting");document.getElementById("statConn").textContent="RECONECTANDO";document.getElementById("statConn").className="value warn"});
 }
 
+function setLoginView(v){
+  document.getElementById("wizardView").style.display=v==="wizard"?"":"none";
+  document.getElementById("keyView").style.display=v==="key"?"":"none";
+  document.getElementById("loginView").style.display=v==="login"?"":"none";
+  document.getElementById("loginErr").style.display="none";
+}
+
+function getConfigured(){
+  try{return JSON.parse(localStorage.getItem("geylca_configured")||"null")}catch(e){return null}
+}
+
+function saveConfigured(cfg){localStorage.setItem("geylca_configured",JSON.stringify(cfg))}
+
+function initAppFlow(){
+  const cfg=getConfigured();
+  if(cfg&&cfg.deviceId)showLoginView();
+  else setLoginView("wizard");
+}
+
+function showLoginView(){
+  const cfg=getConfigured();
+  const info=document.getElementById("loginModuleInfo");
+  if(info)info.textContent="Módulo: "+(cfg?cfg.deviceId:"")+". Ingrese su clave de rol (admin o instalador) para continuar.";
+  const ls=document.getElementById("loginSecret");
+  if(ls)ls.value="";
+  setLoginView("login");
+}
+
 function parseRawData(){
   const val=document.getElementById("rawDataInput").value.trim();
   const errEl=document.getElementById("loginErr");
-  if(!val){errEl.textContent="Pegue la data cruda (JSON del módulo) o escanee el QR.";errEl.style.display="block";return;}
+  if(!val){errEl.textContent="Pegue la data cruda (JSON del módulo).";errEl.style.display="block";return;}
   let data=null;
   try{
     data=JSON.parse(val);
@@ -1027,46 +1181,146 @@ function parseRawData(){
     const m=val.match(/"device_id"\s*:\s*"([^"]+)"/);
     const s=val.match(/"secret"\s*:\s*"([^"]+)"/);
     if(m&&s){data={device_id:m[1],secret:s[1]};}
-    else{errEl.textContent="No se pudo interpretar la data. Debe ser tipo: {\"device_id\":\"...\",\"secret\":\"...\"}";errEl.style.display="block";return;}
+    else{errEl.textContent="No se pudo interpretar la data. Formato: {\"device_id\":\"...\",\"secret\":\"...\"}";errEl.style.display="block";return;}
   }
   const id=data.device_id||data.deviceId;
   const sec=data.secret;
   if(!id||!sec){errEl.textContent="La data no contiene device_id o secret.";errEl.style.display="block";return;}
   document.getElementById("loginDeviceId").value=id.trim();
-  document.getElementById("loginSecret").value=sec.trim();
-  const role=document.getElementById("loginRole").value||"admin";
-  document.getElementById("loginErr").style.display="none";
-  localStorage.setItem("geylca_deviceId",id.trim());
-  localStorage.setItem("geylca_secret_"+id.trim()+"_"+role,sec.trim());
-  toast("Data cargada. Ahora presione Conectar.","success");
+  document.getElementById("wizSecret").value=sec.trim();
+  errEl.style.display="none";
+  toast("Data cargada. Pulse 'Guardar y continuar'.","success");
 }
 
-function doLogin(){
+function randKey(len){
+  const chars="ABCDEF0123456789";
+  let s="";
+  for(let i=0;i<len;i++)s+=chars[Math.floor(Math.random()*16)];
+  return s;
+}
+
+function wizardContinue(){
   const did=document.getElementById("loginDeviceId").value.trim();
-  const sec=document.getElementById("loginSecret").value.trim();
-  const role=document.getElementById("loginRole").value;
+  const sec=document.getElementById("wizSecret").value.trim();
   const errEl=document.getElementById("loginErr");
-  if(!did){errEl.textContent="Ingrese el Device ID";errEl.style.display="block";return}
-  if(!sec){errEl.textContent="Ingrese la clave del rol (secret)";errEl.style.display="block";return}
+  if(!did){errEl.textContent="Ingrese el Device ID del módulo";errEl.style.display="block";return}
+  if(!sec||sec.length<8){errEl.textContent="Ingrese el secret maestro (mín. 8 caracteres)";errEl.style.display="block";return}
   errEl.style.display="none";
-  deviceId=did;
-  deviceSecret=sec;
-  currentRole=role;
+  saveConfigured({deviceId:did,secret:sec,installerDone:false});
+  document.getElementById("wizardInstallerKey").value="";
+  const wbtn=document.getElementById("btnSetWizKey");
+  wbtn.disabled=true;
+  wbtn.textContent="Guardar clave instalador";
+  toast("Módulo configurado. Ahora cree la clave de instalador.","success");
+  setLoginView("key");
+}
+
+async function wizSaveInstallerKey(){
+  const k=document.getElementById("wizardInstallerKey").value.trim();
+  const errEl=document.getElementById("loginErr");
+  if(k.length<16||!/^[A-Za-z0-9_-]+$/.test(k)){
+    errEl.textContent="La clave debe tener mínimo 16 caracteres alfanuméricos (- y _ permitidos).";
+    errEl.style.display="block";
+    return;
+  }
+  const cfg=getConfigured();
+  if(!cfg){errEl.textContent="Falta la configuración del módulo.";errEl.style.display="block";return;}
+  deviceId=cfg.deviceId;
+  deviceSecret=cfg.secret;
+  currentRole="master";
+  const btn=document.getElementById("btnSetWizKey");
+  btn.disabled=true;
+  btn.textContent="Guardando...";
+  const res=await sendStandalone(await buildAction("set_role_key",{target_role:"installer",key:k}),12000);
+  btn.disabled=false;
+  btn.textContent="Guardar clave instalador";
+  currentRole="installer";
+  if(res.status==="OK"){
+    cfg.installerDone=true;
+    saveConfigured(cfg);
+    toast("Clave de instalador configurada correctamente.","success");
+    showLoginView();
+  }else{
+    errEl.textContent="No se pudo guardar la clave: "+(res.message||res.status||"sin respuesta del módulo")+". Verifique que el módulo esté en línea y la data cruda sea correcta.";
+    errEl.style.display="block";
+  }
+}
+
+function goToLogin(){
+  try{if(client){client.end(true);client=null}}catch(e){}
+  setConnState("off");
+  setModuleState("noresp");
+  if(statusInterval){clearInterval(statusInterval);statusInterval=null}
+  if(pendingRoleVerify&&pendingRoleVerify.timer)clearTimeout(pendingRoleVerify.timer);
+  pendingRoleVerify=null;
+  eventBuffer=[];logBuffer=[];slotData={};
+  renderEvents();renderLogs();
+  document.getElementById("appContainer").style.display="none";
+  showLoginView();
+}
+
+function startLogin(){
+  const key=document.getElementById("loginSecret").value.trim();
+  const cfg=getConfigured();
+  const errEl=document.getElementById("loginErr");
+  if(!cfg){errEl.textContent="No hay un módulo configurado. Realice la configuración inicial.";errEl.style.display="block";return}
+  if(!key||key.length<8){errEl.textContent="Ingrese la clave para identificar su rol (admin o instalador).";errEl.style.display="block";return}
+  errEl.style.display="none";
+  deviceId=cfg.deviceId;
+  deviceSecret=key;
+  currentRole="installer";
   announcedOnline=false;
   moduleStateKnown=false;
-  const lb=document.getElementById("loginBtn");
-  lb.textContent="Conectando al broker...";
-  lb.disabled=true;
-  localStorage.setItem("geylca_deviceId",did);
-  localStorage.setItem("geylca_secret_"+did+"_"+role,sec);
-  localStorage.setItem("geylca_role",role);
+  pendingRoleVerify={status:"pending",timer:null};
   document.getElementById("loginOverlay").style.display="none";
   document.getElementById("appContainer").style.display="flex";
-  document.getElementById("headerDevice").textContent="Device: "+did;
-  document.getElementById("pairDeviceId").textContent=did;
-  if(role!=="master"){document.getElementById("navConfig").style.display="none";document.getElementById("navPairing").style.display="none"}
-  else{document.getElementById("navConfig").style.display="";document.getElementById("navPairing").style.display=""}
+  document.getElementById("headerDevice").textContent="Device: "+deviceId;
+  document.getElementById("pairDeviceId").textContent=deviceId;
+  document.getElementById("navConfig").style.display="none";
+  document.getElementById("navPairing").style.display="none";
   connectMQTT();
+}
+
+function handleRoleVerified(d){
+  if(!d||!d.role)return;
+  if(pendingRoleVerify&&pendingRoleVerify.timer)clearTimeout(pendingRoleVerify.timer);
+  pendingRoleVerify=null;
+  if(d.role==="master"){
+    toast("Esa clave pertenece al rol MAESTRO. Úsela en la app GEYLCA Master.","error");
+    goToLogin();
+    return;
+  }
+  currentRole=d.role;
+  loginKeyTemp="";
+  announcedOnline=false;
+  moduleStateKnown=false;
+  armModuleCheck();
+  renderRoleControls();
+  localStorage.setItem("geylca_role",currentRole);
+  localStorage.setItem("geylca_secret_"+deviceId+"_"+currentRole,deviceSecret);
+  toast("Bienvenido: "+(currentRole==="admin"?"Administrador":"Instalador"),"success");
+  setTimeout(()=>{makeMsg("get_free_slots").then(m=>publish(m))},300);
+  if(statusInterval)clearInterval(statusInterval);
+  statusInterval=setInterval(()=>{if(client&&client.connected){makeMsg("get_free_slots").then(m=>publish(m))}},30000);
+}
+
+function renderRoleControls(){
+  const adm=document.getElementById("adminRoleCard");
+  if(!adm)return;
+  adm.style.display=(currentRole==="admin")?"":"none";
+}
+
+function reconfigureModule(){
+  localStorage.removeItem("geylca_configured");
+  currentRole="installer";
+  deviceSecret="";
+  const li=document.getElementById("loginDeviceId");
+  if(li)li.value="";
+  const ws=document.getElementById("wizSecret");
+  if(ws)ws.value="";
+  const rd=document.getElementById("rawDataInput");
+  if(rd)rd.value="";
+  setLoginView("wizard");
 }
 
 function showSlotsSub(name){
@@ -1089,14 +1343,7 @@ function initTabs(){
 }
 
 function restoreSession(){
-  const did=localStorage.getItem("geylca_deviceId");
-  const role=localStorage.getItem("geylca_role")||"master";
-  const sec=localStorage.getItem("geylca_secret_"+did+"_"+role);
-  if(did&&sec){
-    document.getElementById("loginDeviceId").value=did;
-    document.getElementById("loginSecret").value=sec;
-    document.getElementById("loginRole").value=role;
-  }
+  initAppFlow();
 }
 
 window.GEYLCA=window.GEYLCA||{};
@@ -1142,24 +1389,24 @@ window.GEYLCA.deleteSlot=function(slot){
 };
 
 function initEvents(){
-  document.getElementById("loginBtn").addEventListener("click",doLogin);
+  document.getElementById("loginBtn").addEventListener("click",startLogin);
   document.getElementById("btnParseRaw").addEventListener("click",parseRawData);
   document.getElementById("rawDataInput").addEventListener("keydown",e=>{if(e.key==="Enter")parseRawData()});
-  document.getElementById("loginDeviceId").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("loginSecret").focus()});
-  document.getElementById("loginSecret").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
-  document.getElementById("btnDisconnect").addEventListener("click",()=>{
-    if(client){client.end(true);client=null}
-    setConnState("off");
-    setModuleState("noresp");
-    if(statusInterval){clearInterval(statusInterval);statusInterval=null}
-    document.getElementById("loginOverlay").style.display="flex";
-    document.getElementById("appContainer").style.display="none";
-    const lb=document.getElementById("loginBtn");
-    lb.disabled=false;
-    lb.textContent="Connect";
-    eventBuffer=[];logBuffer=[];slotData={};
-    renderEvents();renderLogs();
+  document.getElementById("btnWizardContinue").addEventListener("click",wizardContinue);
+  document.getElementById("loginDeviceId").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("wizSecret").focus()});
+  document.getElementById("wizSecret").addEventListener("keydown",e=>{if(e.key==="Enter")wizardContinue()});
+  document.getElementById("btnBackToRaw").addEventListener("click",()=>setLoginView("wizard"));
+  document.getElementById("btnGenWizKey").addEventListener("click",()=>{
+    document.getElementById("wizardInstallerKey").value=randKey(32);
+    document.getElementById("btnSetWizKey").disabled=false;
   });
+  document.getElementById("wizardInstallerKey").addEventListener("input",()=>{
+    document.getElementById("btnSetWizKey").disabled=document.getElementById("wizardInstallerKey").value.trim().length<16;
+  });
+  document.getElementById("btnSetWizKey").addEventListener("click",wizSaveInstallerKey);
+  document.getElementById("btnReconfigure").addEventListener("click",reconfigureModule);
+  document.getElementById("loginSecret").addEventListener("keydown",e=>{if(e.key==="Enter")startLogin()});
+  document.getElementById("btnDisconnect").addEventListener("click",goToLogin);
 
   document.getElementById("btnOpenDoor").addEventListener("click",()=>{
     if(!canDo("open"))return;
@@ -1253,13 +1500,6 @@ function initEvents(){
     setTimeout(()=>setWaiting(false),5000);
   });
 
-  function randKey(len){
-    const chars="ABCDEF0123456789";
-    let s="";
-    for(let i=0;i<len;i++)s+=chars[Math.floor(Math.random()*16)];
-    return s;
-  }
-
   document.getElementById("btnGenInstallerKey").addEventListener("click",()=>{
     document.getElementById("installerKeyInput").value=randKey(32);
     document.getElementById("btnSetInstallerKey").disabled=false;
@@ -1277,15 +1517,17 @@ function initEvents(){
   });
 
   document.getElementById("btnSetInstallerKey").addEventListener("click",()=>{
+    if(!canDo("set_role_key"))return;
     const k=document.getElementById("installerKeyInput").value.trim();
-    if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
-    makeMsg("set_role_key",{role:"installer",key:k}).then(m=>publish(m));
+    if(k.length<16||!/^[A-Za-z0-9_-]+$/.test(k)){toast("Clave inválida (min 16 alfanuméricos)","error");return}
+    makeMsg("set_role_key",{target_role:"installer",key:k}).then(m=>publish(m));
     toast("Guardando clave instalador...","info");
   });
   document.getElementById("btnSetAdminKey").addEventListener("click",()=>{
+    if(!canDo("set_role_key"))return;
     const k=document.getElementById("adminKeyInput").value.trim();
-    if(!canDo("set_role_key")||k.length<16){toast("Clave inválida (min 16 chars)","error");return}
-    makeMsg("set_role_key",{role:"admin",key:k}).then(m=>publish(m));
+    if(k.length<16||!/^[A-Za-z0-9_-]+$/.test(k)){toast("Clave inválida (min 16 alfanuméricos)","error");return}
+    makeMsg("set_role_key",{target_role:"admin",key:k}).then(m=>publish(m));
     toast("Guardando clave admin...","info");
   });
 

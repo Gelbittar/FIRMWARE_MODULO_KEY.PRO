@@ -34,7 +34,7 @@
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.1.0"
+#define FIRMWARE_VERSION "2.2.0"
 
 #define MAX_LOG_ENTRIES 100
 
@@ -556,6 +556,35 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             return;
         }
 
+        if (action == "verify_role") {
+            time_t nowV = time(nullptr);
+            if (nowV <= 1000000000) {
+                mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Clock not synchronized\"}");
+                return;
+            }
+            long diffV = abs((long)nowV - (long)timestamp);
+            if (diffV > 120) {
+                mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Token expired\"}");
+                return;
+            }
+            String rawV = action + String(timestamp);
+            String foundRole = "";
+            if (adminKey.length() > 0 && clientToken == calcularHMAC(rawV, adminKey)) foundRole = "admin";
+            else if (installerKey.length() > 0 && clientToken == calcularHMAC(rawV, installerKey)) foundRole = "installer";
+            else if (clientToken == calcularHMAC(rawV, deviceSecret)) foundRole = "master";
+            if (foundRole.length() == 0) {
+                if (!checkRateLimit("verify")) {
+                    mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Rate limit exceeded\"}");
+                    return;
+                }
+                mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid security token\"}");
+                return;
+            }
+            String verifyResp = "{\"status\":\"OK\",\"message\":\"Role verified\",\"role\":\"" + foundRole + "\"}";
+            mqttClient.publish(getTopic("status_resp").c_str(), verifyResp.c_str());
+            return;
+        }
+
         String roleKey;
         if (role == "master") roleKey = deviceSecret;
         else if (role == "admin") roleKey = adminKey;
@@ -1054,10 +1083,21 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         }
         http.end();
     }
-    else if (action == "set_role_key" && role == "master") {
-        String targetRole = doc["role"] | "";
+    else if (action == "set_role_key") {
+        String targetRole = doc["target_role"] | "";
+        if (targetRole != "admin" && targetRole != "installer") {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid target role\"}");
+            return;
+        }
+        bool allowed = (role == "master") ||
+                       (role == "admin") ||
+                       (role == "installer" && targetRole == "installer");
+        if (!allowed) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
         String newKey = doc["key"] | "";
-        if ((targetRole == "admin" || targetRole == "installer") && newKey.length() >= 16 && isSafeKey(newKey)) {
+        if (newKey.length() >= 16 && isSafeKey(newKey)) {
             preferences.begin("geylca_sec", false);
             if (targetRole == "admin") {
                 adminKey = newKey;
@@ -1072,9 +1112,32 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         } else {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid role or key (min 16 alphanumeric chars)\"}");
         }
+        return;
     }
-    else if (action == "get_role_keys" && role == "master") {
-        String keysResp = "{\"master\":\"" + deviceSecret + "\",\"admin\":\"" + adminKey + "\",\"installer\":\"" + installerKey + "\"}";
+    else if (action == "reset_installer_key" && role == "master") {
+        installerKey = "123456";
+        preferences.begin("geylca_sec", false);
+        preferences.putString("key_installer", installerKey);
+        preferences.end();
+        String resetResp = "{\"status\":\"OK\",\"message\":\"Installer key reset to 123456\",\"key\":\"123456\"}";
+        mqttClient.publish(getTopic("status_resp").c_str(), resetResp.c_str());
+        return;
+    }
+    else if (action == "get_role_keys") {
+        bool isMaster = (role == "master");
+        bool isAdmin = (role == "admin");
+        if (!isMaster && !isAdmin && role != "installer") {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        String keysResp = "{";
+        if (isMaster) {
+            keysResp += "\"master\":\"" + deviceSecret + "\",";
+        }
+        if (isMaster || isAdmin) {
+            keysResp += "\"admin\":\"" + adminKey + "\",";
+        }
+        keysResp += "\"installer\":\"" + installerKey + "\"}";
         mqttClient.publish(getTopic("status_resp").c_str(), keysResp.c_str());
     }
 }
