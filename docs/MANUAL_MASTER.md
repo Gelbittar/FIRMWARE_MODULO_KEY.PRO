@@ -9,30 +9,29 @@ Aplicación **aparte** de la app de operador/instalador. Permite administrar **t
   `https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest` → archivo **`master.apk`**
   - Instalar el APK en el celular del administrador (activar "fuentes desconocidas").
 
-El login usa el rol **Master** con la **clave maestra** del módulo (data cruda de la pestaña Pairing).
+## Clave de la app (local, una vez por instalación)
 
-## Requisito previo
+Al abrir la app la primera vez pide crear la **clave de esta app**: con ella se desbloquea la app en ESE dispositivo (celular/PC). No se sube a ningún servidor; se guarda como hash local junto con una sal aleatoria en el almacenamiento del dispositivo.
 
-- Soy master en el login (rol "Master") con la **clave maestra del módulo**.
-- La clave maestra de cada módulo queda guardada en el registro local (localStorage); no sale del dispositivo.
+- Al reabrir la app, pedirá esa clave para desbloquear (modo **Desbloquear**).
+- Si se olvida, no hay forma de recuperarla desde la app: se restablece borrando los datos del sitio/app (se perderá también el registro de módulos guardado).
 
-> La app también conserva las pestañas de operación de un solo módulo (Dashboard, Slots, Config, Pairing, Logs, Consola) para que el master administre cada módulo en profundidad.
+## Alta de módulos (selector)
 
-## Alta de módulos
+Al entrar (con clave de app o recién creada) se muestra el **selector de módulos**:
 
 1. En cada módulo, pestaña **Pairing** → copiar la "data cruda".
-2. En la consola maestra → **+ Agregar Módulo** → pegar la data cruda → Agregar.
-3. El módulo aparece en la tabla con estado en vivo.
+2. Pulsar **+ Agregar módulo con Data Cruda** → pegar la data cruda → **Agregar**.
+3. El módulo aparece listado; pulsar **Operar** para conectarse a él.
 
-Alternativas:
-- **Importar JSON**: pegar una lista de módulos `[{"deviceId":"...","secret":"..."}]`.
-- **Exportar JSON**: copiar el registro completo (para pasar a otro celular).
+- **Cambiar módulo** (en el encabezado) vuelve al selector, o **Disconnect** para salir.
+- El registro de módulos (id + secret de cada uno) queda guardado localmente en el dispositivo (localStorage); no se sube a internet.
 
-Quitar un módulo del registro (✕) **no borra los datos del módulo**, solo lo quita de la lista.
+Alternativas: en la pestaña **Master** del módulo operado se puede **Importar** una lista JSON `[{"deviceId":"...","secret":"..."}]` o **Exportar** el registro (para pasar a otro celular). Quitar un módulo (✕) **no borra los datos del módulo**, solo lo saca del registro.
 
-## Uso
+## Uso de un módulo
 
-La tabla muestra por módulo: alias/id, estado (ONLINE/OFFLINE), versión de firmware, casillas libres / total de llaves, último evento y acciones.
+La consola maestra opera el módulo seleccionado con el rol **Master** (firma con el secret del módulo). La tabla de la pestaña Master muestra por módulo: alias/id, estado (ONLINE/OFFLINE), versión de firmware, casillas libres / total de llaves, último evento y acciones.
 
 | Acción | Qué hace |
 |---|---|
@@ -42,10 +41,11 @@ La tabla muestra por módulo: alias/id, estado (ONLINE/OFFLINE), versión de fir
 | **Logs** | Solicita los registros recientes |
 | **Info** | Pide versión de firmware / datos del dispositivo |
 | **OTA** | Actualiza el firmware por aire (ver abajo) |
-| **Rol** | Asigna o cambia la clave de un rol (admin/instalador) |
+| **Rol** | Asigna o cambia la clave de un rol (admin/instalador); el instalador solo puede cambiarse a sí mismo |
+| **Reset** | Restablece la clave de instalador del módulo a `123456` (enviado firmado como master); luego admin/instalador puede cambiarla desde la app operador |
 | **Wipe** | Borra todas las casillas del módulo (pide confirmación) |
 
-El módulo en uso (con el que hiciste login) también se muestra en la consola maestra si lo agregaste.
+También hay un acceso directo **Reset clave instalador a 123456** en Config del módulo seleccionado.
 
 ## OTA (actualización por aire)
 
@@ -71,14 +71,15 @@ Si algo sale mal, el ESP32 vuelve solo a la versión anterior (app0/app1). La co
 
 | Síntoma | Causa | Solución |
 |---|---|---|
+| Pide "clave de la app" y no es la esperada | Es la clave local del dispositivo, distinta de las claves de rol | Recordar/restablecer la clave local; no es la clave del módulo |
 | El módulo no se marca ONLINE | Broker público con latencia, o módulo apagado | Esperar a que publique su estado (cada reconexión envía `ONLINE`) |
-| `DENIED` al enviar un comando | Clave maestra equivocada o reloj desfasado | Verificar el secret del módulo; sincronizar reloj |
+| `DENIED` al enviar un comando | Secret del módulo equivocado o reloj desfasado | Verificar el secret del módulo (Pairing); sincronizar reloj |
+| Un instalador ya no puede entrar con su clave | Se hizo **Reset** o el admin cambió la clave de instalador | Entregar la clave nueva o volver a asignar una desde Master/Roles |
 | OTA falla con "MD5 mismatch" | Se eligió una URL antigua o se copió mal el MD5 | Volver a usar la predefinida del release |
 | La tabla muestra `--` en FW | Todavía no se pidió `Info` | Pulsar Info para refrescar la versión |
-| El contador "Llaves" no marca | Libertad del broker: `get_slots` responde por lotes | La descarga completa llega en segundos (2 lotes típicos); mirar "último evento" |
 
 ## Buenas prácticas
 
 - Hacer **una** actualización OTA a la vez en cada módulo (el broker público limita mensajes).
-- Guardar el export JSON del registro como respaldo.
+- Guardar el export JSON del registro como respaldo (junto con la clave local de la app).
 - Cuando escale a 100+ módulos, usar un broker propio (VPS) en lugar del broker público de prueba.

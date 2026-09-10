@@ -36,6 +36,15 @@ El módulo, la primera vez, arranca en modo AP (punto de acceso). Conectarse a s
 
 Los datos quedan guardados en la NVS de la ESP32. Comandos de mantenimiento por MQTT: `reset_wifi`, `factory_reset`.
 
+## Claves de roles (v2.2.0)
+
+El módulo autentica por HMAC las claves de los roles. Acciones por MQTT (todas sobre `geylca/<id>/cmd` con firma según rol):
+
+- `verify_role` — con `action + timestamp + token`; el módulo prueba la clave contra `admin`, `installer` y el secret maestro, y responde `{"status":"OK","message":"Role verified","role":"…"}` en `status_resp`.
+- `set_role_key` — recibe **`target_role`** (`admin`/`installer`) y `key` (mín. 16 alfanuméricos). Permiso: master/admin pueden asignar cualquier rol, el instalador solo su propio rol. Respuesta `{"status":"OK","message":"<rol> key updated"}`.
+- `get_role_keys` — perfilado por rol: master ve las 3 claves, admin ve admin+installer, instalador ve solo la suya.
+- `reset_installer_key` — solo master; deja la clave de instalador en `123456` (par default de restablecimiento; luego admin/instalador puede cambiarla).
+
 ## Versiones y OTA
 
 Cada versión de firmware se publica en **GitHub Releases**:
@@ -58,9 +67,11 @@ El ESP32 tiene particiones **app0 / app1 / otadata**: si un OTA falla, el módul
 | `get_slots` publicaba 63+ lotes | Se enviaban lote por lote aunque estuvieran vacíos | Ya optimizado: sólo publica los lotes que tienen casillas (2 lotes típicos) |
 | Mensajes `DENIED` al operar | HMAC/reloj desincronizado | El web/app y el módulo deben tener hora cercana; el web sincroniza con NTP del dispositivo |
 | Límite de publicaciones del broker | Brokers públicos limitan mensajes (p. ej. 10 por 60 s) | Cuidado con `get_slots` seguidos; esperar ~5 min si el broker corta |
+| El instalador no entra con su clave tras un reset | La clave de instalador volvió a `123456` | Reasignar una clave nueva desde Master (Rol/Reset) o desde Roles en la app operador |
 
 ## Datos de fábrica (para pruebas)
 
-- deviceId: `modulo01`
-- secret master: `4CF5C8D8CBB0_1069`
-- Broker: `broker.hivemq.com` (MQTT 1883 / TLS 8883 / WSS 8884)
+- deviceId: auto por MAC (`mod_XXXXXXXX`, p. ej. `mod_D8C8F54C`).
+- secret master: `4CF5C8D8CBB0_1069` (de una unidad de prueba; en producción cada módulo genera el suyo por MAC+tiempo).
+- Clave de instalador tras `reset_installer_key`: `123456`.
+- Broker: `broker.hivemq.com` (MQTT 1883 / TLS 8883 / WSS 8884).
