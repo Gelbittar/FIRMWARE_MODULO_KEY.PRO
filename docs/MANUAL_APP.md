@@ -21,13 +21,27 @@ El login usa **un PIN de rol de 6 dígitos** (admin o instalador). El módulo lo
 
 ## Primer uso (wizard)
 
-1. Abrir la app por primera vez → pantalla de **Data Cruda**.
+1. Abrir la app por primera vez (sin módulos) → pantalla de **Data Cruda**.
 2. Pegar la data cruda copiada de la pestaña **Pairing** del módulo
    `{"device_id":"...","secret":"..."}` y pulsar **Guardar y continuar**.
 3. Crear el **PIN de instalador** (6 dígitos) o pulsar **Generar** para autocompletar, y pulsar **Guardar clave instalador** (se envía al módulo firmada como master).
-4. Pasa a la pantalla de **login**: ingresar el PIN de instalador (o el de un administrador si ya existe) para identificar su rol.
+4. El módulo queda agregado a la **familia** y pasa a la pantalla de selección. Pulse **Entrar** sobre el módulo para ir al login de PIN.
 
-> El dispositivo queda configurado para ese módulo. Con **Configurar otro módulo** se pasa otro módulo o se repite el wizard.
+> En una familia con varios módulos se recomienda usar el **mismo PIN de instalador** en todos, para que el instalador entre igual en cualquiera.
+
+## Familia de módulos (multi-módulo)
+
+La app operador guarda un **registro de módulos** (familia) en el dispositivo: todos comparten la misma pantalla de login y los mismos roles. Al abrir la app se muestra el **selector de módulos**:
+
+- **Entrar** — va al login de ese módulo (mismo PIN de rol).
+- **PIN** — reasigna el PIN de instalador de ese módulo (se envía firmado con el secret maestro del módulo). Útil para volver a dejar el PIN de la familia.
+- **X** — quita el módulo del registro (no borra datos del módulo).
+
+Botón **+ Agregar módulo**: repetir el wizard con la data cruda del otro módulo.
+
+- Al pulsar **Disconnect** se cierra la sesión y vuelve al **selector de módulos** (o al wizard si la familia quedó vacía).
+- Desde el login, **Configurar otro módulo** abre el mismo selector.
+- El registro se guarda en localStorage (`geylca_family`). La familia de la versión previa (un solo módulo en `geylca_configured`) se **migra automáticamente** al abrir la app.
 
 ## Login y detección de rol
 

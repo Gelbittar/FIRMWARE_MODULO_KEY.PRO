@@ -222,6 +222,22 @@ main{
   outline:none;
   transition:.2s;
 }
+.family-row{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  padding:.55rem .6rem;
+  margin-bottom:.5rem;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  background:rgba(255,255,255,.02);
+}
+.family-row:hover{background:rgba(255,255,255,.05)}
+.family-row .grow{flex:1;min-width:0}
+.family-row .fam-id{font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.family-row .fam-sub{font-size:.68rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.family-row .btn{white-space:nowrap}
+#familyList{max-height:42vh;overflow-y:auto;margin-bottom:.6rem}
 .login-box input:focus,.login-box select:focus{border-color:var(--accent)}
 .login-box select option{background:var(--card);color:var(--text)}
 .login-box button{
@@ -752,6 +768,12 @@ tr:hover td{background:rgba(0,212,255,.03)}
         <button class="btn" id="btnBackToRaw">Atrás</button>
         <button class="btn accent" id="btnSetWizKey">Guardar PIN instalador</button>
       </div>
+    </div>
+
+    <div id="familyView" style="display:none">
+      <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Familia de módulos GEYLCA: todos comparten el mismo PIN (admin/instalador). Seleccione un módulo para ingresar.</p>
+      <div id="familyList"></div>
+      <button id="btnFamilyAdd" class="accent" style="margin-bottom:.4rem">+ Agregar módulo</button>
     </div>
 
     <div id="loginView" style="display:none">
@@ -1710,8 +1732,59 @@ function connectMQTT(){
 function setLoginView(v){
   document.getElementById("wizardView").style.display=v==="wizard"?"":"none";
   document.getElementById("keyView").style.display=v==="key"?"":"none";
+  document.getElementById("familyView").style.display=v==="family"?"":"none";
   document.getElementById("loginView").style.display=v==="login"?"":"none";
   document.getElementById("loginErr").style.display="none";
+}
+
+let familyModules=[];
+let activeModule=null;
+let pendingModule=null;
+
+function loadFamily(){
+  try{familyModules=JSON.parse(localStorage.getItem("geylca_family")||"[]")||[]}catch(e){familyModules=[]}
+}
+
+function saveFamily(){localStorage.setItem("geylca_family",JSON.stringify(familyModules))}
+
+function migrateOldConfig(){
+  const c=getConfigured();
+  if(!familyModules.length&&c&&c.deviceId&&c.secret){
+    familyModules=[{deviceId:c.deviceId,secret:c.secret,alias:c.alias||c.deviceId,installerDone:!!c.installerDone}];
+    saveFamily();
+  }
+}
+
+function showModuleSelect(){
+  const listEl=document.getElementById("familyList");
+  if(!familyModules.length){
+    listEl.innerHTML='<p class="empty-msg">No hay módulos en la familia todavía. Agregue el primero con la Data Cruda del módulo.</p>';
+  }else{
+    listEl.innerHTML=familyModules.map((m,i)=>
+      '<div class="family-row"><div class="grow"><div class="fam-id">'+escHtml(m.alias||m.deviceId)+'</div><div class="fam-sub">'+escHtml(m.deviceId)+'</div></div>'+
+      '<button class="btn accent" onclick="GEYLCA.enterFamilyModule('+i+')">Entrar</button>'+
+      '<button class="btn" title="Asignar PIN de instalador" onclick="GEYLCA.familySetInstaller('+i+')">PIN</button>'+
+      '<button class="btn danger" title="Quitar de la familia" onclick="GEYLCA.familyRemove('+i+')">X</button></div>'
+    ).join("");
+  }
+  setLoginView("family");
+}
+
+function goToModuleSelect(){
+  try{if(client){client.end(true);client=null}}catch(e){}
+  activeModule=null;
+  setConnState("off");
+  setModuleState("noresp");
+  if(statusInterval){clearInterval(statusInterval);statusInterval=null}
+  if(pendingRoleVerify&&pendingRoleVerify.timer)clearTimeout(pendingRoleVerify.timer);
+  pendingRoleVerify=null;
+  eventBuffer=[];logBuffer=[];slotData={};
+  renderEvents();renderLogs();
+  document.getElementById("appContainer").style.display="none";
+  document.getElementById("loginOverlay").style.display="flex";
+  loadFamily();
+  if(familyModules.length)showModuleSelect();
+  else setLoginView("wizard");
 }
 
 function getConfigured(){
@@ -1721,15 +1794,16 @@ function getConfigured(){
 function saveConfigured(cfg){localStorage.setItem("geylca_configured",JSON.stringify(cfg))}
 
 function initAppFlow(){
-  const cfg=getConfigured();
-  if(cfg&&cfg.deviceId)showLoginView();
+  loadFamily();
+  migrateOldConfig();
+  if(familyModules.length)showModuleSelect();
   else setLoginView("wizard");
 }
 
 function showLoginView(){
-  const cfg=getConfigured();
+  const cfg=activeModule||familyModules[0]||getConfigured();
   const info=document.getElementById("loginModuleInfo");
-  if(info)info.textContent="Módulo: "+(cfg?cfg.deviceId:"")+". Ingrese su clave de rol (admin o instalador) para continuar.";
+  if(info)info.textContent="Módulo: "+(cfg?cfg.deviceId:"")+". Ingrese su PIN (admin o instalador).";
   const ls=document.getElementById("loginSecret");
   if(ls)ls.value="";
   setLoginView("login");
@@ -1774,13 +1848,15 @@ function wizardContinue(){
   const errEl=document.getElementById("loginErr");
   if(!did){errEl.textContent="Ingrese el Device ID del módulo";errEl.style.display="block";return}
   if(!sec||sec.length<8){errEl.textContent="Ingrese el secret maestro (mín. 8 caracteres)";errEl.style.display="block";return}
+  if(familyModules.find(x=>x.deviceId===did)){errEl.textContent="Ese módulo ya está en la familia.";errEl.style.display="block";return}
   errEl.style.display="none";
-  saveConfigured({deviceId:did,secret:sec,installerDone:false});
+  pendingModule={deviceId:did,secret:sec,installerDone:false};
   document.getElementById("wizardInstallerKey").value="";
   const wbtn=document.getElementById("btnSetWizKey");
   wbtn.disabled=true;
   wbtn.textContent="Guardar PIN instalador";
-  toast("Módulo configurado. Ahora cree la clave de instalador.","success");
+  const hint=(familyModules.length>0)?(" Use el MISMO PIN instalador que el resto de la familia: "+(familyModules[0].installerPin||"(definido en el primer módulo)")):"";
+  toast("Módulo configurado. Ahora cree la clave de instalador."+hint,"success");
   setLoginView("key");
 }
 
@@ -1792,7 +1868,7 @@ async function wizSaveInstallerKey(){
     errEl.style.display="block";
     return;
   }
-  const cfg=getConfigured();
+  const cfg=pendingModule||getConfigured();
   if(!cfg){errEl.textContent="Falta la configuración del módulo.";errEl.style.display="block";return;}
   deviceId=cfg.deviceId;
   deviceSecret=cfg.secret;
@@ -1806,9 +1882,15 @@ async function wizSaveInstallerKey(){
   currentRole="installer";
   if(res.status==="OK"){
     cfg.installerDone=true;
+    cfg.installerPin=k;
+    const idx=familyModules.findIndex(x=>x.deviceId===cfg.deviceId);
+    if(idx>=0)familyModules[idx]=cfg;
+    else familyModules.push(cfg);
+    saveFamily();
+    pendingModule=null;
     saveConfigured(cfg);
-    toast("Clave de instalador configurada correctamente.","success");
-    showLoginView();
+    toast("PIN de instalador configurado en "+cfg.deviceId+".","success");
+    goToModuleSelect();
   }else{
     errEl.textContent="No se pudo guardar la clave: "+(res.message||res.status||"sin respuesta del módulo")+". Verifique que el módulo esté en línea y la data cruda sea correcta.";
     errEl.style.display="block";
@@ -1825,12 +1907,15 @@ function goToLogin(){
   eventBuffer=[];logBuffer=[];slotData={};
   renderEvents();renderLogs();
   document.getElementById("appContainer").style.display="none";
-  showLoginView();
+  document.getElementById("loginOverlay").style.display="flex";
+  loadFamily();
+  if(activeModule||familyModules[0]||getConfigured())showLoginView();
+  else setLoginView("wizard");
 }
 
 function startLogin(){
   const key=document.getElementById("loginSecret").value.trim();
-  const cfg=getConfigured();
+  const cfg=activeModule||familyModules[0]||getConfigured();
   const errEl=document.getElementById("loginErr");
   if(!cfg){errEl.textContent="No hay un módulo configurado. Realice la configuración inicial.";errEl.style.display="block";return}
   if(!key||!/^\d{6}$/.test(key)){errEl.textContent="Ingrese su PIN de 6 dígitos (admin o instalador).";errEl.style.display="block";return}
@@ -1920,7 +2005,75 @@ function reconfigureModule(){
   if(ws)ws.value="";
   const rd=document.getElementById("rawDataInput");
   if(rd)rd.value="";
+  loadFamily();
+  if(familyModules.length){
+    activeModule=null;
+    pendingModule=null;
+    goToModuleSelect();
+  }else{
+    setLoginView("wizard");
+  }
+}
+
+function addFamilyModule(){
+  currentRole="installer";
+  deviceSecret="";
+  pendingModule=null;
+  const li=document.getElementById("loginDeviceId");
+  if(li)li.value="";
+  const ws=document.getElementById("wizSecret");
+  if(ws)ws.value="";
+  const rd=document.getElementById("rawDataInput");
+  if(rd)rd.value="";
   setLoginView("wizard");
+}
+
+function familyRemove(i){
+  const m=familyModules[i];
+  if(!m)return;
+  if(!confirm("Quitar "+m.deviceId+" de la familia? (no borra datos del módulo)"))return;
+  familyModules.splice(i,1);
+  saveFamily();
+  if(activeModule&&activeModule.deviceId===m.deviceId)activeModule=null;
+  showModuleSelect();
+  toast("Módulo quitado de la familia","info");
+}
+
+function enterFamilyModule(i){
+  const m=familyModules[i];
+  if(!m){toast("Módulo no encontrado","error");return}
+  activeModule=m;
+  localStorage.setItem("geylca_selected_family_module",m.deviceId);
+  showLoginView();
+}
+
+async function familySetInstaller(i){
+  const m=familyModules[i];
+  if(!m)return;
+  const k=prompt("Nuevo PIN instalador (6 dígitos) para "+m.deviceId,"");
+  if(k===null)return;
+  if(!/^\d{6}$/.test(k.trim())){toast("PIN inválido (6 dígitos)","error");return}
+  const savedId=deviceId,savedSec=deviceSecret,savedRole=currentRole;
+  deviceId=m.deviceId;
+  deviceSecret=m.secret;
+  currentRole="master";
+  try{
+    const res=await sendStandalone(await buildAction("set_role_key",{target_role:"installer",key:k.trim()}),12000);
+    if(res.status==="OK"){
+      m.installerDone=true;
+      m.installerPin=k.trim();
+      saveFamily();
+      showModuleSelect();
+      toast("PIN instalador actualizado en "+m.deviceId,"success");
+    }else{
+      toast("No se pudo actualizar: "+(res.message||res.status),"error");
+    }
+  }catch(e){
+    toast("Error","error");
+  }
+  deviceId=savedId;
+  deviceSecret=savedSec;
+  currentRole=savedRole;
 }
 
 function showSlotsSub(name){
@@ -1947,6 +2100,9 @@ function restoreSession(){
 }
 
 window.GEYLCA=window.GEYLCA||{};
+window.GEYLCA.enterFamilyModule=enterFamilyModule;
+window.GEYLCA.familySetInstaller=familySetInstaller;
+window.GEYLCA.familyRemove=familyRemove;
 window.GEYLCA.confirmScan=function(){
   if(!canDo("confirm_key"))return;
   const extra={};
@@ -2007,6 +2163,7 @@ function initEvents(){
   document.getElementById("btnReconfigure").addEventListener("click",reconfigureModule);
   document.getElementById("loginSecret").addEventListener("keydown",e=>{if(e.key==="Enter")startLogin()});
   document.getElementById("btnDisconnect").addEventListener("click",goToLogin);
+  document.getElementById("btnFamilyAdd").addEventListener("click",addFamilyModule);
 
   document.getElementById("btnOpenDoor").addEventListener("click",()=>{
     if(!canDo("open"))return;

@@ -24,7 +24,7 @@ Al entrar (con clave de app o recién creada) se muestra el **selector de módul
 2. Pulsar **+ Agregar módulo con Data Cruda** → pegar la data cruda → **Agregar**.
 3. El módulo aparece listado; pulsar **Operar** para conectarse a él.
 
-- **Cambiar módulo** (en el encabezado) vuelve al selector, o **Disconnect** para salir.
+- **Cambiar módulo** (en el encabezado) o **Disconnect** vuelven al **selector de módulos** para cambiar de módulo o salir.
 - El registro de módulos (id + secret de cada uno) queda guardado localmente en el dispositivo (localStorage); no se sube a internet.
 
 Alternativas: en la pestaña **Master** del módulo operado se puede **Importar** una lista JSON `[{"deviceId":"...","secret":"..."}]` o **Exportar** el registro (para pasar a otro celular). Quitar un módulo (✕) **no borra los datos del módulo**, solo lo saca del registro.

@@ -34,7 +34,7 @@
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.3.0"
+#define FIRMWARE_VERSION "2.3.1"
 
 #define PIN_LEN 6
 #define DEFAULT_ADMIN_PIN "123456"
@@ -514,7 +514,10 @@ bool continuarWipe() {
     if (wipeBytesPos >= totalBytes) {
         slotsWiping = false;
         preferences.begin("geylca_apt", false);
-        preferences.clear();
+        for (int slot = 1; slot <= MAX_SLOTS; slot++) {
+            preferences.remove(("s_" + String(slot)).c_str());
+            if (preferences.isKey(("sus_" + String(slot)).c_str())) preferences.remove(("sus_" + String(slot)).c_str());
+        }
         preferences.end();
         ocClearAll();
         mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"OK\",\"message\":\"All slots wiped\"}");
@@ -910,6 +913,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         }
         preferences.begin("geylca_apt", false);
         preferences.clear();
+        preferences.putString("devId", deviceId);
+        preferences.putInt("secMode", 8);
+        securityMode = 8;
+        slotSize = 8;
+        preferences.putInt("relayTime", 1200);
         preferences.end();
         preferences.begin("geylca_logs", true);
         preferences.clear();
@@ -1359,15 +1367,16 @@ void setup() {
     Serial.print(FIRMWARE_VERSION);
     Serial.println(" (4000 Casillas) ---");
 
-    preferences.begin("geylca_apt", true);
     deviceId = preferences.getString("devId", "");
     if (deviceId.length() == 0) {
         deviceId = generarDeviceIdUnico();
+        preferences.end();
         preferences.begin("geylca_apt", false);
         preferences.putString("devId", deviceId);
         preferences.end();
         Serial.print("[SYS] DeviceId generado por MAC: ");
         Serial.println(deviceId);
+        preferences.begin("geylca_apt", true);
     }
     relayTimeDefault = preferences.getInt("relayTime", 1200);
     securityMode = preferences.getInt("secMode", 8);

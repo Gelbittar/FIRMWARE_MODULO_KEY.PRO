@@ -1808,7 +1808,35 @@ function goToModuleSelect(){
   eventBuffer=[];logBuffer=[];slotData={};
   renderEvents();renderLogs();
   document.getElementById("appContainer").style.display="none";
+  document.getElementById("loginOverlay").style.display="flex";
   showModuleSelect();
+}
+
+function disconnectMaster(){
+  try{if(client){client.end(true);client=null}}catch(e){}
+  setConnState("off");
+  setModuleState("noresp");
+  if(statusInterval){clearInterval(statusInterval);statusInterval=null}
+  eventBuffer=[];logBuffer=[];slotData={};
+  renderEvents();renderLogs();
+  document.getElementById("appContainer").style.display="none";
+  document.getElementById("loginOverlay").style.display="flex";
+  const info=getPassInfo();
+  const bt=document.getElementById("passModeText");
+  const inp=document.getElementById("masterPassInput");
+  const setBtn=document.getElementById("btnSetPass");
+  const unlBtn=document.getElementById("btnUnlock");
+  inp.value="";
+  if(info&&info.salt&&info.hash){
+    bt.textContent="Ingrese la clave de esta app para continuar.";
+    setBtn.style.display="none";
+    unlBtn.style.display="";
+  }else{
+    bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. La clave no se sube a ningún servidor.";
+    setBtn.style.display="";
+    unlBtn.style.display="none";
+  }
+  setLoginView("pass");
 }
 
 function showSlotsSub(name){
@@ -1891,6 +1919,10 @@ function masterModal(title,fields,onOk,okLabel){
     if(f.label)html+='<label style="font-size:.8rem;margin-bottom:.15rem;display:block">'+escHtml(f.label)+'</label>';
     if(f.type==="textarea"){
       html+='<textarea id="mm_'+escHtml(f.id)+'" rows="'+(f.rows||3)+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;resize:vertical">'+escHtml(f.value||"")+'</textarea>';
+    }else if(f.type==="select"){
+      html+='<select id="mm_'+escHtml(f.id)+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;outline:none">'+
+        (f.options||[]).map(o=>'<option value="'+escHtml(o.value)+'">'+escHtml(o.label)+'</option>').join("")+
+        '</select>';
     }else{
       html+='<input id="mm_'+escHtml(f.id)+'" type="'+(f.type||"text")+'" value="'+escHtml(f.value||"")+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;outline:none">';
     }
@@ -2015,12 +2047,13 @@ function masterExport(){
 function masterSetRole(i){
   const m=masterModules[i];
   if(!m)return;
-  masterModal("Asignar clave de rol en "+m.deviceId,
-    [{id:"role",value:"admin"},{id:"key",label:"Nueva clave (mín. 16 alfanuméricos)",placeholder:"p.ej. 1A2B3C4D5E6F7G8H"}],
+  masterModal("Asignar PIN de rol en "+m.deviceId,
+    [{id:"role",type:"select",label:"Rol",options:[{value:"admin",label:"Admin"},{value:"installer",label:"Instalador"}]},
+     {id:"key",label:"Nuevo PIN (6 dígitos)",placeholder:"p.ej. 123456",value:""}],
     res=>{
       const role=res.role||"admin";
-      if(!res.key||res.key.length<16){toast("Clave demasiado corta","error");return;}
-      masterCmd(i,"set_role_key",{target_role:role,key:res.key},"Clave de "+role+" enviada a "+m.deviceId);
+      if(!/^\d{6}$/.test(res.key||"")){toast("PIN inválido (debe ser de 6 dígitos)","error");return;}
+      masterCmd(i,"set_role_key",{target_role:role,key:res.key},"PIN de "+role+" asignado en "+m.deviceId);
     },"Enviar");
 }
 function masterOTA(i){
@@ -2092,7 +2125,7 @@ function initEvents(){
     if(info&&info.salt&&info.hash)unlockApp();
     else createPass();
   });
-  document.getElementById("btnDisconnect").addEventListener("click",goToModuleSelect);
+  document.getElementById("btnDisconnect").addEventListener("click",disconnectMaster);
   document.getElementById("btnSwitchModule").addEventListener("click",goToModuleSelect);
   document.getElementById("btnAddModuleWiz").addEventListener("click",showModuleAdd);
   document.getElementById("btnModuleAddCancel").addEventListener("click",backToModuleList);
