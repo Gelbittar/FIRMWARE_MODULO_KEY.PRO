@@ -1,11 +1,22 @@
-# Manual de la Consola Maestra (multi-módulo) GEYLCA
+# Manual de la Consola Maestra GEYLCA (multi-módulo)
 
-La consola maestra permite **operar todos los módulos del edificio desde un solo lugar**, ya sea en la web o en la app Android, usando la pestaña **Master**.
+Aplicación **aparte** de la app de operador/instalador. Permite administrar **todos los módulos** del edificio desde un solo lugar, además de configurar cada módulo en profundidad (Pairing/QR, relé, modo de seguridad, claves de roles) y hacer OTA.
+
+## Dónde conseguirla
+
+- **Web**: `web/master.html` (se abre en cualquier navegador moderno).
+- **App Android (APK)**: se publica como adjunto de cada release:
+  `https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest` → archivo **`master.apk`**
+  - Instalar el APK en el celular del administrador (activar "fuentes desconocidas").
+
+El login usa el rol **Master** con la **clave maestra** del módulo (data cruda de la pestaña Pairing).
 
 ## Requisito previo
 
 - Soy master en el login (rol "Master") con la **clave maestra del módulo**.
 - La clave maestra de cada módulo queda guardada en el registro local (localStorage); no sale del dispositivo.
+
+> La app también conserva las pestañas de operación de un solo módulo (Dashboard, Slots, Config, Pairing, Logs, Consola) para que el master administre cada módulo en profundidad.
 
 ## Alta de módulos
 
@@ -53,7 +64,8 @@ Si algo sale mal, el ESP32 vuelve solo a la versión anterior (app0/app1). La co
 | Archivo | Para qué |
 |---|---|
 | `firmware.bin` | OTA de los módulos |
-| `app.apk` | Consola maestra / app Android |
+| `app.apk` | App de operador / instalador / admin |
+| `master.apk` | Consola maestra (multi-módulo) |
 
 ## fallas reales y soluciones
 

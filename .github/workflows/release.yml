@@ -29,8 +29,8 @@ jobs:
           path: .pio/build/esp32dev/firmware.bin
           retention-days: 3
 
-  apk:
-    name: Build APK
+  apk-operator:
+    name: Build APK operador
     runs-on: ubuntu-latest
     needs: firmware
     steps:
@@ -43,7 +43,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Prepare web assets
-        run: mkdir -p app/web && cp -r web/. app/web/
+        run: mkdir -p app/web && cp web/index.html app/web/index.html
       - name: Install app deps
         working-directory: app
         run: npm install
@@ -66,10 +66,47 @@ jobs:
           path: app.apk
           retention-days: 3
 
+  apk-master:
+    name: Build APK consola maestra
+    runs-on: ubuntu-latest
+    needs: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Prepare web assets
+        run: mkdir -p app-master/web && cp web/master.html app-master/web/index.html
+      - name: Install app deps
+        working-directory: app-master
+        run: npm install
+      - name: Add Android platform
+        working-directory: app-master
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: app-master/android
+        run: ./gradlew assembleDebug
+      - name: Prepare artifact
+        run: cp app-master/android/app/build/outputs/apk/debug/app-debug.apk master.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: master-apk
+          path: master.apk
+          retention-days: 3
+
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [firmware, apk]
+    needs: [firmware, apk-operator, apk-master]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -79,6 +116,10 @@ jobs:
         with:
           name: apk
           path: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: master-apk
+          path: .
       - name: List assets
         run: ls -la
       - uses: softprops/action-gh-release@v2
@@ -86,4 +127,5 @@ jobs:
           files: |
             firmware.bin
             app.apk
+            master.apk
           generate_release_notes: true

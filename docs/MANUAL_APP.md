@@ -1,29 +1,25 @@
-# Manual de la App / Consola Web GEYLCA
+# Manual de la App / Consola Web GEYLCA (Operador)
 
-Interfaz para operar los módulos GEYLCA desde un navegador (web) o desde la app Android (Capacitor). Misma interfaz, dos formas de usarla.
+Interfaz para **instaladores y administradores** de módulos GEYLCA: operar un módulo a la vez (apertura, casillas, logs). Para administrar **todos los módulos** (consola maestra, OTA, alta de admins) se usa la **app aparte "GEYLCA Master"** (ver MANUAL_MASTER.md).
 
 ## Dónde conseguirla
 
-- **Web**: el proyecto la contiene en `web/index.html` (se abre en cualquier navegador moderno, desktop o móvil).
+- **Web**: `web/index.html` (se abre en cualquier navegador moderno, desktop o móvil).
 - **App Android (APK)**: se publica como adjunto de cada release:
-  `https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest` → archivo `app.apk`
+  `https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest` → archivo **`app.apk`**
   - En el celular: "Descargar APK" → instalar (activar "instalar desde fuentes desconocidas" en Android).
   - La app es de **debug/sin firmar**: es para uso interno/desarrollo.
 
-## Conectarse a un módulo
+## Roles soportados (operador)
 
-Cada módulo muestra en su pestaña **Pairing** la "data cruda":
+Esta app permite entrar con los roles **Admin** e **Installer** (la clave maestra se usa solo en la app Master).
 
-```json
-{"device_id":"mod_XXXXXXXX","secret":"CLAVE_MAESTRA"}
-```
-
-En la pantalla de login (web o app) pegar esa data en "Pegar Data Cruda del Módulo" y pulsar "Cargar Data Cruda". Seleccionar el rol:
-- **Master** — control total (configuración, OTA, compartir claves admin/instalador).
-- **Admin** — administra llaves y casillas.
+- **Admin** — administra llaves y casillas (abrir, agregar, suspender, aprender llaves, configurar relé).
 - **Installer** — solo puede programar/grabar llaves.
 
-El rol y su clave se validan con un código HMAC sobre `acción + timestamp`; si el reloj del dispositivo está desfasado, el módulo rechaza (`DENIED`).
+## Conectarse a un módulo
+
+En la pantalla de login, pegar la "data cruda" del módulo (pestaña Pairing) o escribir device id + clave del rol (admin o instalador). El rol y su clave se validan con un código HMAC sobre `acción + timestamp`; si el reloj del dispositivo está desfasado, el módulo rechaza (`DENIED`).
 
 ## Pestañas
 
@@ -31,11 +27,10 @@ El rol y su clave se validan con un código HMAC sobre `acción + timestamp`; si
 |---|---|
 | **Dashboard** | Estado del broker, total/libres de casillas, modo de seguridad, abrir puerta, eventos recientes |
 | **Slots** | Agregar/editar casillas, aprender llave, buscar casilla libre, consultar todas las casillas |
-| **Config** (master) | Relé, modo de seguridad (4/8 bytes), claves instalador/admin, mantenimiento (Reset WiFi, borrar casillas, factory reset) |
-| **Pairing** (master) | Ver/QR del deviceId + secret para emparejar o dar de alta |
 | **Logs** | Solicitar registros del módulo |
 | **Consola** | Tráfico MQTT TX/RX en vivo, útil para depurar |
-| **Master** (rol master) | Consola maestra multi-módulo (ver manual del master) |
+
+(Config, Pairing y la pestaña Master son de la app **GEYLCA Master**.)
 
 ## fallas reales y soluciones
 

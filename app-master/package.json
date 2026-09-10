@@ -1,0 +1,16 @@
+{
+  "name": "geylca-master-app",
+  "version": "1.1.0",
+  "description": "GEYLCA Consola Maestra - operacion multi-modulo (Capacitor)",
+  "license": "UNLICENSED",
+  "scripts": {
+    "sync": "cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

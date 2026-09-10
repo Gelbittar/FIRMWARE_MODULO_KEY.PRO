@@ -136,6 +136,9 @@ tr:hover td{background:rgba(0,180,216,.04)}
   .form-row .field{min-width:100%}
 }
 .empty-msg{text-align:center;padding:2rem;color:var(--text);opacity:.4;font-size:.9rem}
+.master-actions{display:flex;flex-wrap:wrap;gap:.25rem}
+.master-actions .btn{font-size:.66rem;padding:.22rem .4rem;margin:0}
+.master-cell-id{font-size:.68rem;opacity:.6;font-family:monospace}
 </style>
 </head>
 <body>
@@ -154,6 +157,7 @@ tr:hover td{background:rgba(0,180,216,.04)}
     <input id="loginSecret" type="password" placeholder="Clave para el rol seleccionado" autocomplete="off">
     <label for="loginRole">Role</label>
     <select id="loginRole">
+      <option value="master">Master</option>
       <option value="admin">Admin</option>
       <option value="installer">Installer</option>
     </select>
@@ -178,6 +182,7 @@ tr:hover td{background:rgba(0,180,216,.04)}
     <button data-tab="tabPairing" id="navPairing" style="display:none">Pairing</button>
     <button data-tab="tabLogs">Logs</button>
     <button data-tab="tabConsole">Consola</button>
+    <button data-tab="tabMaster" id="navMaster" style="display:none">Master</button>
   </nav>
 
   <main>
@@ -367,6 +372,23 @@ tr:hover td{background:rgba(0,180,216,.04)}
         </div>
       </div>
     </div>
+
+    <!-- Consola Maestra (multi-módulo) -->
+    <div id="tabMaster" class="tab">
+      <div class="card">
+        <h3>Consola Maestra</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Registro local de módulos en este dispositivo. Como master podés ver y operar todos los módulos del registro. Los secrets apenas se guardan en este dispositivo/app (localStorage). Para agregar uno, copiá la "Data Cruda" de la pestaña Pairing del módulo.</p>
+        <div class="btn-row">
+          <button class="btn accent" id="btnMasterAdd">+ Agregar Módulo</button>
+          <button class="btn" id="btnMasterImport">Importar JSON</button>
+          <button class="btn" id="btnMasterExport">Exportar JSON</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Módulo</th><th>Estado</th><th>FW</th><th>Libres</th><th>Último evento</th><th>Acciones</th></tr></thead>
+          <tbody id="masterTableBody"><tr><td colspan="6" class="empty-msg">Sin módulos en el registro. Usá "+ Agregar Módulo" para cargar los módulos.</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -390,7 +412,10 @@ let selectedProgId = "";
 let pendingProgKey = "";
 let progScanTimer = null;
 let deviceSecret = "";
-let currentRole = "admin";
+let currentRole = "master";
+let masterModules=[];
+let masterState={};
+let masterTimer=null;
 let pendingResponse = null;
 let eventBuffer = [];
 let logBuffer = [];
@@ -411,7 +436,7 @@ let moduleStateKnown = false;
 let lastModuleSeen = 0;
 let announcedOnline = false;
 
-const roles = {admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
+const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys"],admin:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay"],installer:["set_key","learn_key","confirm_key","cancel_learn","get_slots","get_first_free_slot","set_apto","get_slot_info"]};
 
 function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
 
@@ -963,7 +988,7 @@ function connectMQTT(){
     toast("Conectado al broker. Verificando módulo...","success");
     setWaiting(false);
     armModuleCheck();
-    const subs=[topic("events"),topic("status"),topic("status_resp"),topic("logs"),"geylca/+/prog/status","geylca/+/prog/events"];
+    const subs=[topic("events"),topic("status"),topic("status_resp"),topic("logs"),"geylca/+/prog/status","geylca/+/prog/events","geylca/+/status","geylca/+/events","geylca/+/status_resp","geylca/+/logs"];
     client.subscribe(subs,{qos:1},err=>{
       if(err)toast("Error suscripción","error");
     });
@@ -979,6 +1004,15 @@ function connectMQTT(){
       if(tp.includes("/prog/")){
         handleProgMessage(tp,payload);
         return;
+    }
+    const partsT=tp.split("/");
+    if(partsT.length>=3&&partsT[0]==="geylca"){
+      const devT=partsT[1];
+      const suffixT=partsT[2];
+      if(suffixT==="status"||suffixT==="events"||suffixT==="status_resp"||suffixT==="logs"){
+        if(currentRole==="master"&&masterModules.find(x=>x.deviceId===devT))handleMasterMessage(devT,suffixT,payload);
+        if(devT!==deviceId)return;
+      }
     }
     const suffix=tp.split("/").pop();
     if(suffix==="status"){
@@ -1034,10 +1068,10 @@ function parseRawData(){
   if(!id||!sec){errEl.textContent="La data no contiene device_id o secret.";errEl.style.display="block";return;}
   document.getElementById("loginDeviceId").value=id.trim();
   document.getElementById("loginSecret").value=sec.trim();
-  const role=document.getElementById("loginRole").value||"admin";
+  document.getElementById("loginRole").value="master";
   document.getElementById("loginErr").style.display="none";
   localStorage.setItem("geylca_deviceId",id.trim());
-  localStorage.setItem("geylca_secret_"+id.trim()+"_"+role,sec.trim());
+  localStorage.setItem("geylca_secret_"+id.trim()+"_master",sec.trim());
   toast("Data cargada. Ahora presione Conectar.","success");
 }
 
@@ -1066,6 +1100,9 @@ function doLogin(){
   document.getElementById("pairDeviceId").textContent=did;
   if(role!=="master"){document.getElementById("navConfig").style.display="none";document.getElementById("navPairing").style.display="none"}
   else{document.getElementById("navConfig").style.display="";document.getElementById("navPairing").style.display=""}
+  document.getElementById("navMaster").style.display=(role==="master")?"":"none";
+  loadMasterRegistry();
+  renderMaster();
   connectMQTT();
 }
 
@@ -1140,6 +1177,208 @@ window.GEYLCA.deleteSlot=function(slot){
     setWaiting(true);
   },"Eliminar");
 };
+
+// ===== Consola Maestra (multi-módulo) =====
+function loadMasterRegistry(){
+  try{masterModules=JSON.parse(localStorage.getItem("geylca_master_modules")||"[]")}catch(e){masterModules=[]}
+  if(!Array.isArray(masterModules))masterModules=[];
+}
+function saveMasterRegistry(){localStorage.setItem("geylca_master_modules",JSON.stringify(masterModules));}
+function masterModal(title,fields,onOk,okLabel){
+  okLabel=okLabel||"Aceptar";
+  const mc=document.getElementById("modalContainer");
+  let html='<div class="modal"><h3>'+escHtml(title)+'</h3>';
+  fields.forEach(f=>{
+    if(f.type==="hidden"){html+='<input type="hidden" id="mm_'+escHtml(f.id)+'" value="'+escHtml(f.value||"")+'">';return;}
+    if(f.label)html+='<label style="font-size:.8rem;margin-bottom:.15rem;display:block">'+escHtml(f.label)+'</label>';
+    if(f.type==="textarea"){
+      html+='<textarea id="mm_'+escHtml(f.id)+'" rows="'+(f.rows||3)+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;resize:vertical">'+escHtml(f.value||"")+'</textarea>';
+    }else{
+      html+='<input id="mm_'+escHtml(f.id)+'" type="'+(f.type||"text")+'" value="'+escHtml(f.value||"")+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;outline:none">';
+    }
+  });
+  html+='<div class="btn-row"><button class="btn" id="mm_cancel">Cancelar</button><button class="btn danger" id="mm_ok">'+escHtml(okLabel)+'</button></div></div>';
+  mc.innerHTML=html;
+  mc.className="modal-bg";
+  mc.style.display="flex";
+  document.getElementById("mm_cancel").onclick=()=>{mc.style.display="none"};
+  document.getElementById("mm_ok").onclick=()=>{
+    const res={};
+    fields.forEach(f=>{const el=document.getElementById("mm_"+f.id);if(el)res[f.id]=el.value.trim();});
+    mc.style.display="none";
+    onOk(res);
+  };
+  return mc;
+}
+function renderMaster(){
+  const tb=document.getElementById("masterTableBody");
+  if(!tb)return;
+  if(!masterModules.length){tb.innerHTML='<tr><td colspan="6" class="empty-msg">Sin módulos en el registro. Usá "+ Agregar Módulo" para cargar la data cruda de cada uno (disponible en Pairing del módulo).</td></tr>';return;}
+  const now=Date.now();
+  tb.innerHTML=masterModules.map((m,i)=>{
+    const st=masterState[m.deviceId]||{};
+    const online=!!st.online&&(now-(st.lastSeen||0))<90000;
+    const badge=online?'<span class="status-tag online">ONLINE</span>':(!st.online)?'<span class="status-tag offline">OFFLINE</span>':'<span class="status-tag wait">?</span>';
+    let freeP=typeof st.free==="number"?st.free:"--";
+    let extraP="";
+    if(typeof st.slots==="number")extraP='<div class="master-cell-id">'+st.slots+' llaves</div>';
+    const last=(st.last&&st.last.text)?escHtml(st.last.text):"--";
+    return '<tr><td><b>'+escHtml(m.alias||m.deviceId)+'</b><div class="master-cell-id">'+escHtml(m.deviceId)+'</div></td>'+
+      '<td>'+badge+'</td><td>'+escHtml(st.fw||"--")+'</td>'+
+      '<td>'+freeP+extraP+'</td>'+
+      '<td style="max-width:220px">'+last+'</td>'+
+      '<td><div class="master-actions">'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'open\')">Abrir</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'free\')">Libres</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'slots\')">Llaves</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'logs\')">Logs</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'info\')">Info</button>'+
+        '<button class="btn accent" onclick="GEYLCA.masterAct('+i+',\'ota\')">OTA</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'role\')">Rol</button>'+
+        '<button class="btn danger" onclick="GEYLCA.masterAct('+i+',\'wipe\')">Wipe</button>'+
+        '<button class="btn danger" title="Quitar del registro" onclick="GEYLCA.masterAct('+i+',\'remove\')">X</button>'+
+      '</div></td></tr>';
+  }).join("");
+}
+function masterCmd(i,action,extra,tip){
+  const m=masterModules[i];
+  if(!m){toast("Módulo no registrado","error");return;}
+  if(!client||!client.connected){toast("Sin conexión MQTT","error");return;}
+  const ts=Math.floor(Date.now()/1000);
+  const tp="geylca/"+m.deviceId+"/cmd";
+  const body=Object.assign({action:action,role:"master",timestamp:ts},extra||{});
+  computeHMAC(action+ts,m.secret).then(token=>{
+    body.token=token;
+    client.publish(tp,JSON.stringify(body),{qos:1});
+    consoleAdd("tx",tp,JSON.stringify(body));
+    if(tip)toast(tip,"info");
+  });
+}
+function masterAct(i,kind){
+  const m=masterModules[i];
+  if(!m)return;
+  const dev=m.deviceId;
+  switch(kind){
+    case "open":masterCmd(i,"open",null,"Apertura enviada a "+dev);break;
+    case "free":masterCmd(i,"get_free_slots",null,"Consultando libres de "+dev);break;
+    case "slots":masterState[dev]=Object.assign(masterState[dev]||{},{slots:0,slotsDone:false});masterCmd(i,"get_slots",null,"Contando llaves de "+dev+"...");break;
+    case "logs":masterCmd(i,"get_logs",{count:30},"Solicitando logs de "+dev);break;
+    case "info":masterCmd(i,"get_device_info",null,"Solicitando info de "+dev);break;
+    case "ota":masterOTA(i);break;
+    case "role":masterSetRole(i);break;
+    case "wipe":
+      masterModal("Borrar TODAS las casillas de "+dev,[],()=>masterCmd(i,"wipe_slots",null,"Borrando casillas de "+dev+"..."),"Borrar todo");
+      break;
+    case "remove":
+      masterModal("Quitar "+dev+" del registro (no borra datos del módulo)",[],()=>{masterModules.splice(i,1);saveMasterRegistry();renderMaster();toast("Módulo quitado del registro","info");},"Quitar");
+      break;
+  }
+}
+function masterAdd(){
+  masterModal("Agregar módulo",
+    [{id:"raw",label:'Pegá la data cruda del módulo o el JSON {"device_id":"...","secret":"..."}',type:"textarea",rows:3,placeholder:'{"device_id":"mod_...","secret":"..."}'}],
+    res=>{
+      const raw=res.raw||"";
+      let did="",sec="";
+      try{const o=JSON.parse(raw);did=o.device_id||o.deviceId||"";sec=o.secret||"";}
+      catch(e){const a=raw.match(/"device_id"\s*:\s*"([^"]+)"/),b=raw.match(/"secret"\s*:\s*"([^"]+)"/);if(a&&b){did=a[1];sec=b[1];}}
+      if(!did||!sec){toast("Data inválida: falta device_id o secret","error");return;}
+      if(masterModules.find(x=>x.deviceId===did)){toast("Ese módulo ya está en el registro","warn");return;}
+      masterModules.push({deviceId:did,secret:sec,alias:did});
+      saveMasterRegistry();
+      renderMaster();
+      toast("Módulo agregado: "+did,"success");
+    },"Agregar");
+}
+function masterImport(){
+  masterModal("Importar registro (JSON)",
+    [{id:"json",type:"textarea",rows:8,placeholder:'[{"deviceId":"...","secret":"..."}]'}],
+    res=>{
+      try{
+        const a=JSON.parse(res.json||"");
+        if(!Array.isArray(a))throw new Error("not array");
+        masterModules=a.map(m=>({deviceId:String(m.deviceId||m.device_id||""),secret:String(m.secret||""),alias:String(m.alias||m.deviceId||m.device_id||"")})).filter(m=>m.deviceId&&m.secret);
+        saveMasterRegistry();
+        renderMaster();
+        toast("Importados "+masterModules.length+" módulos","success");
+      }catch(e){toast("JSON inválido","error");}
+    },"Importar");
+}
+function masterExport(){
+  masterModal("Registro de módulos (JSON) — seleccioná y copiá el contenido",
+    [{id:"json",type:"textarea",rows:8,value:JSON.stringify(masterModules,null,2)}],
+    ()=>{},
+    "Cerrar");
+}
+function masterSetRole(i){
+  const m=masterModules[i];
+  if(!m)return;
+  masterModal("Asignar clave de rol en "+m.deviceId,
+    [{id:"role",value:"admin"},{id:"key",label:"Nueva clave (mín. 16 alfanuméricos)",placeholder:"p.ej. 1A2B3C4D5E6F7G8H"}],
+    res=>{
+      const role=res.role||"admin";
+      if(!res.key||res.key.length<16){toast("Clave demasiado corta","error");return;}
+      masterCmd(i,"set_role_key",{role:role,key:res.key},"Clave de "+role+" enviada a "+m.deviceId);
+    },"Enviar");
+}
+function masterOTA(i){
+  const m=masterModules[i];
+  if(!m)return;
+  const openModal=rel=>{
+    masterModal("Actualizar firmware de "+m.deviceId,
+      [{id:"url",label:"URL del firmware (.bin)",value:rel?rel.url:"",placeholder:"https://.../firmware.bin"},
+       {id:"md5",label:"MD5 (opcional)",placeholder:"32 caracteres hexadecimales"}],
+      res=>{
+        if(!res.url){toast("Falta la URL","error");return;}
+        masterCmd(i,"ota_update",{url:res.url,md5:res.md5},"OTA iniciada en "+m.deviceId+"… se reiniciará al terminar");
+      },"Actualizar");
+  };
+  fetchLatestRelease().then(openModal,()=>openModal(null));
+}
+function fetchLatestRelease(){
+  return fetch("https://api.github.com/repos/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest")
+    .then(r=>{if(!r.ok)throw new Error("no latest");return r.json();})
+    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/download/"+tag+"/firmware.bin"};});
+}
+function handleMasterMessage(devT,suffix,payload){
+  if(!masterModules.find(x=>x.deviceId===devT))return;
+  let d={};
+  try{d=JSON.parse(payload)||{}}
+  catch(e){d={}}
+  const now=Date.now();
+  const st=masterState[devT]||(masterState[devT]={});
+  st.lastSeen=now;
+  st.online=true;
+  const status=String(d.status||d.message||d.action||"").toUpperCase();
+  if(suffix==="status"){
+    if(status==="OFFLINE")st.online=false;
+  }else if(suffix==="events"||suffix==="status_resp"){
+    if(typeof d.firmware==="string")st.fw=d.firmware;
+    if(typeof d.free_slots==="number")st.free=d.free_slots;
+    if(status==="GET_SLOTS_START"){st.slots=0;st.slotsDone=false;}
+    else if(status==="SLOTS_BATCH"&&Array.isArray(d.slots)){st.slots=(st.slots||0)+d.slots.length;}
+    else if(status==="SLOTS_DONE"){if(!st.slotsDone){st.slotsDone=true;st.last={text:"llaves: "+(st.slots||0)+" en "+devT};if(st.slots>0)toast(devT+": "+st.slots+" llaves","success");}}
+    else if(status==="ONLINE"){if(typeof d.free==="number")st.free=d.free;}
+    if(status==="SLOTS_BATCH"&&Array.isArray(d.slots)){st.last={text:"lote de "+d.slots.length};}
+    else if(status==="OK"&&d.message==="Free slot"&&typeof d.slot==="number"){st.last={text:"Libre #"+d.slot};}
+    else if(status!=="SLOTS_BATCH"&&status!=="ONLINE"&&status!=="SLOTS_DONE"){
+      let t=status;
+      if(d.message)t+=" "+d.message;
+      if(d.action)t+=" ("+d.action+")";
+      if(d.slot!==undefined)t+=" slot#"+d.slot;
+      st.last={text:t};
+    }
+  }else if(suffix==="logs"){
+    let n=0;
+    try{const arr=JSON.parse(payload);n=Array.isArray(arr)?arr.length:1;}
+    catch(e){n=1;}
+    st.last={text:"logs: "+n};
+    toast("Logs de "+devT+" recibidos ("+n+")","info");
+  }
+  renderMaster();
+}
+window.GEYLCA.masterAct=masterAct;
+window.GEYLCA.masterAdd=masterAdd;
 
 function initEvents(){
   document.getElementById("loginBtn").addEventListener("click",doLogin);
@@ -1391,12 +1630,19 @@ function initEvents(){
     if(document.getElementById("consoleFollow").checked)out.scrollTop=out.scrollHeight;
   });
 
+  document.getElementById("btnMasterAdd").addEventListener("click",masterAdd);
+  document.getElementById("btnMasterImport").addEventListener("click",masterImport);
+  document.getElementById("btnMasterExport").addEventListener("click",masterExport);
+  if(masterTimer)clearInterval(masterTimer);
+  masterTimer=setInterval(renderMaster,5000);
+
   renderConsole();
 }
 
 restoreSession();
 initTabs();
 initEvents();
+loadMasterRegistry();
 
 })();
 </script>

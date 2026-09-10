@@ -7,6 +7,10 @@ app/node_modules
 app/web
 app/android
 app/dist
+app-master/node_modules
+app-master/web
+app-master/android
+app-master/dist
 *.apk
 include
 lib
