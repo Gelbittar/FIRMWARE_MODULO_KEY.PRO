@@ -5,8 +5,8 @@ Interfaz para **instaladores y administradores** de módulos GEYLCA: operar un m
 ## Dónde conseguirla
 
 - **Web**: `web/index.html` (se abre en cualquier navegador moderno, desktop o móvil).
-- **App Android (APK)**: se publica como adjunto de cada release:
-  `https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest` → archivo **`app.apk`**
+- **App Android (APK)**: se publica como adjunto de cada release en el repositorio público de binarios:
+  `https://github.com/Gelbittar/GEYLCA-Assets/releases/latest` → archivo **`app.apk`**
   - En el celular: "Descargar APK" → instalar (activar "instalar desde fuentes desconocidas" en Android).
   - La app es de **debug/sin firmar**: es para uso interno/desarrollo.
 

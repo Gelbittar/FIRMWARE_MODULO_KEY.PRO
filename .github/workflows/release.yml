@@ -129,3 +129,30 @@ jobs:
             app.apk
             master.apk
           generate_release_notes: true
+      - name: Publish assets to GEYLCA-Assets (publico)
+        env:
+          PAT: ${{ secrets.ASSETS_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PAT" ]; then
+            echo "::error::Secret ASSETS_PAT no esta definido"
+            exit 1
+          fi
+          TAG="${GITHUB_REF#refs/tags/}"
+          ASSETS_API="https://api.github.com/repos/Gelbittar/GEYLCA-Assets"
+          AUTH="Authorization: Bearer $PAT"
+          ID="$(curl -s -H "$AUTH" "$ASSETS_API/releases/tags/$TAG" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("id") or "")')"
+          if [ -z "$ID" ]; then
+            ID="$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"generate_release_notes\":true}" \
+              "$ASSETS_API/releases" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("id") or "")')"
+            echo "Release creado en GEYLCA-Assets (id=$ID, tag=$TAG)"
+          else
+            echo "Release ya existia (id=$ID, tag=$TAG)"
+          fi
+          for F in firmware.bin app.apk master.apk; do
+            curl -s -X POST -H "$AUTH" -H "Content-Type: application/octet-stream" \
+              --data-binary "@$F" \
+              "$ASSETS_API/releases/$ID/assets?name=$F" >/dev/null || true
+            echo "Asset subido: $F"
+          done

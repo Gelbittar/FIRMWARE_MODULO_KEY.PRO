@@ -2071,9 +2071,9 @@ function masterOTA(i){
   fetchLatestRelease().then(openModal,()=>openModal(null));
 }
 function fetchLatestRelease(){
-  return fetch("https://api.github.com/repos/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/latest")
+  return fetch("https://api.github.com/repos/Gelbittar/GEYLCA-Assets/releases/latest")
     .then(r=>{if(!r.ok)throw new Error("no latest");return r.json();})
-    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/download/"+tag+"/firmware.bin"};});
+    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/GEYLCA-Assets/releases/download/"+tag+"/firmware.bin"};});
 }
 function handleMasterMessage(devT,suffix,payload){
   if(!masterModules.find(x=>x.deviceId===devT))return;

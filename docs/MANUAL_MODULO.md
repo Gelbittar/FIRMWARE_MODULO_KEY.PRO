@@ -86,12 +86,12 @@ El firmware está pensado para el **ESP32 clásico** (chip Xtensa **ESP32-D0WD /
 
 ## Versiones y OTA
 
-Cada versión de firmware se publica en **GitHub Releases**:
-`https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO`
+El repositorio de **código fuente** (`FIRMWARE_MODULO_KEY.PRO`) es **privado**; los binarios se publican en el repositorio público **`GEYLCA-Assets`**:
+`https://github.com/Gelbittar/GEYLCA-Assets`
 
 Archivo por versión: `firmware.bin`.
 La consola maestra puede actualizar el módulo por aire (OTA) con la URL del release:
-`https://github.com/Gelbittar/FIRMWARE_MODULO_KEY.PRO/releases/download/vX.Y.Z/firmware.bin`
+`https://github.com/Gelbittar/GEYLCA-Assets/releases/download/vX.Y.Z/firmware.bin`
 
 El ESP32 tiene particiones **app0 / app1 / otadata**: si un OTA falla, el módulo vuelve solo a la versión anterior.
 
@@ -109,6 +109,22 @@ El ESP32 tiene particiones **app0 / app1 / otadata**: si un OTA falla, el módul
 | El instalador no entra con su clave tras un reset | El PIN de instalador volvió a `654321` | Reasignar un PIN nuevo desde Master (Rol/Reset) o desde Roles en la app operador |
 | Un admin no entra con su PIN | El instalador/master cambió el PIN admin, o el módulo lo normalizó a `123456` al pasar a v2.3.0 | Pedir el PIN nuevo; o resetear el PIN admin a `123456` desde Master/app operador (rol instalador) |
 | Tras reiniciar, las llaves desaparecen o el modo de seguridad vuelve a 8 | Bug de v2.3.0: `wipe_slots`/`factory_reset` borraban la NVS y `secMode` no persistía | Actualizar a **v2.3.2** (el modo y las llaves ya persisten a través de reinicios) |
+
+## Programador inalámbrico (ESP-01): respaldo y restauro
+
+El *programador inalámbrico* usa una placa **ESP-01 (ESP8266)** que puede prestarse para otro proyecto. Su código y binario quedan respaldados en este repositorio (privado):
+
+- **Código fuente**: `programador-inalambrico/` (`src/main.cpp` + `platformio.ini` con sus dependencias).
+- **Binario ya compilado**: `programador-inalambrico/release/firmware-esp01.bin` (imagen completa con bootloader; se restaura sin recompilar ni internet).
+
+Para **reutilizar el ESP-01** en otro proyecto, flashear ese otro firmware (borra el programador). Para **volver a dejarlo como programador**:
+
+1. Conectarlo como ESP-01 (GND/GPIO0 a masa para entrar en modo flash).
+2. Reflashear con PlatformIO desde `programador-inalambrico/`:
+   `pio run -t upload --upload-port /dev/ttyUSBX`
+   o restaurar el binario directo:
+   `esptool.py --port /dev/ttyUSBX write_flash 0x0 release/firmware-esp01.bin`
+3. Conectar el lector iButton y alimentarlo; reconfigurar WiFi por el portal WiFiManager (AP `GEYLCA-Config`) si se borró la config (LittleFS).
 
 ## Datos de fábrica (para pruebas)
 
