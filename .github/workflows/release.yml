@@ -153,6 +153,6 @@ jobs:
           for F in firmware.bin app.apk master.apk; do
             curl -s -X POST -H "$AUTH" -H "Content-Type: application/octet-stream" \
               --data-binary "@$F" \
-              "$ASSETS_API/releases/$ID/assets?name=$F" >/dev/null || true
+              "https://uploads.github.com/repos/Gelbittar/GEYLCA-Assets/releases/$ID/assets?name=$F" >/dev/null || true
             echo "Asset subido: $F"
           done
