@@ -1,5 +1,5 @@
 /*
- * KeyPro Alarm — Módulo de alarma V1.0 (ESP-01 / ESP8266)
+ * KeyPro Alarm — Módulo de alarma (ESP-01 / ESP8266 y ESP32 / WROOM-32U)
  *
  * Reutiliza el patrón WiFi del "código principal del programador":
  *   - WiFiManager (portal cautivo "KeyPro-XXXX", configura la red de casa
@@ -7,11 +7,14 @@
  *   - LittleFS /config.json + /pairing.json
  *   - MQTT TLS (8883) con payloads cifrados AES-256-GCM end-to-end.
  *
- * Pines (ESP-01, sin expansor):
- *   GPIO1 (TX) -> Relé ARMA/DESARMA   (salida activo-LOW, PNP high-side)
- *   GPIO0      -> Relé PÁNICO          (salida activo-LOW, PNP high-side)
- *   GPIO3 (RX) -> Entrada SENSADO sirena (HIGH reposo; LOW = pulso activo)
- *   GPIO2      -> Botón RESET config   (INPUT_PULLUP; mantener 5 s)
+ * Pines:
+ *   ESP-01 (ESP8266):  GPIO1 (TX) -> Relé ARMA   (activo-LOW, PNP high-side)
+ *                      GPIO0      -> Relé PÁNICO  (activo-LOW)
+ *                      GPIO3 (RX) -> SENSADO (HIGH reposo; LOW = pulso activo)
+ *                      GPIO2      -> Botón RESET config (INPUT_PULLUP; 5 s)
+ *   ESP32 (WROOM-32U): GPIO27 -> Relé ARMA · GPIO26 -> Relé PÁNICO
+ *                      GPIO25 -> SENSADO · GPIO16 -> Botón RESET config
+ *                      (evita pines de strapping 0/2/12/15)
  *
  * Protocolo (cifrado AES-256-GCM, secret del QR):
  *   App   -> keypro/{dev}/cmd   {"v":1,"t":epoch,"n":nonce_b64,"c":cipher_b64}
@@ -20,28 +23,40 @@
  *   eventos: ARMED, DISARMED, TRIGGERED, ALARM, COMMAND_ARM, COMMAND_DISARM,
  *            PANIC, ONLINE, OFFLINE, CONFIG_SAVED
  *
- * Decodificación del sensado de sirena:
- *   1 pulso corto  -> ARMADO
- *   2 pulsos       -> DESARMADO
- *   1 pulso >=30 s -> ALARMA ACTIVADA (TRIGGERED)
+ * Sensado de sirena (una única ventana, senseWindowMs):
+ *   1 pulso -> ARMADO · 2 pulsos -> DESARMADO
+ *   señal mantenida LOW toda la ventana -> ALARMA (TRIGGERED)
  */
 
-#include <ESP8266WiFi.h>
+#if defined(ESP32)
+  #include <WiFi.h>
+  #include <esp_random.h>
+  #include <mbedtls/gcm.h>
+#else
+  #include <ESP8266WiFi.h>
+  #include <bearssl/bearssl.h>
+#endif
 #include <WiFiManager.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
-#include <bearssl/bearssl.h>
 #include <time.h>
 
-#define FIRMWARE_VERSION "1.2.1"
+#define FIRMWARE_VERSION "1.3.0"
 
 // ------------------------------ PINES --------------------------------
+#if defined(ESP32)
+#define RELAY_ARM_PIN   27  // GPIO27 -> Relé ARMA/DESARMA
+#define RELAY_PANIC_PIN 26  // GPIO26 -> Relé PÁNICO
+#define SENSE_PIN       25  // GPIO25 -> Entrada sensado sirena
+#define RESET_BTN_PIN   16  // GPIO16 -> Botón RESET config
+#else
 #define RELAY_ARM_PIN   1   // GPIO1 / TX
 #define RELAY_PANIC_PIN 0   // GPIO0
 #define SENSE_PIN       3   // GPIO3 / RX
 #define RESET_BTN_PIN   2   // GPIO2
+#endif
 
 // --------------------------- CONSTANTES ------------------------------
 #define MQTT_HOST "broker.hivemq.com"
@@ -170,7 +185,11 @@ void loadOrCreatePairing() {
         dev = "KP";
         for (int i = 2; i < 6; i++) { dev += HEXT[mac[i] >> 4]; dev += HEXT[mac[i] & 15]; }
         byte rnd[32];
+    #if defined(ESP32)
+        for (int i = 0; i < 32; i++) rnd[i] = (byte)esp_random();
+    #else
         for (int i = 0; i < 32; i++) rnd[i] = (byte)os_random();
+    #endif
         rnd[0] ^= mac[0]; rnd[1] ^= mac[5];
         secretHex = hexEncode(rnd, 32);
         hexDecode(secretHex, aesKey, 32);
@@ -208,6 +227,46 @@ void saveConfig() {
 }
 
 // ----------------------------- CRYPTO --------------------------------
+#if defined(ESP32)
+static mbedtls_gcm_context gcmCtx;
+static bool cryptoReady = false;
+
+bool cryptoInit() {
+    mbedtls_gcm_init(&gcmCtx);
+    if (mbedtls_gcm_setkey(&gcmCtx, MBEDTLS_CIPHER_ID_AES, aesKey, 256) != 0) return false;
+    cryptoReady = true;
+    return true;
+}
+
+// cifra plain -> base64(iv(12)+ct(n)+tag(16))
+bool encryptToB64(const uint8_t* plain, size_t plainLen, const char* add, size_t addLen, String& outB64) {
+    byte iv[12]; for (int i = 0; i < 12; i++) iv[i] = (byte)esp_random();
+    uint8_t ct[512];
+    uint8_t tag[16];
+    if (mbedtls_gcm_crypt_and_tag(&gcmCtx, MBEDTLS_GCM_ENCRYPT, plainLen,
+            iv, 12, (const uint8_t*)add, addLen, plain, ct, 16, tag) != 0) return false;
+    uint8_t blob[12 + 512 + 16];
+    memcpy(blob, iv, 12);
+    memcpy(blob + 12, ct, plainLen);
+    memcpy(blob + 12 + plainLen, tag, 16);
+    outB64 = base64Encode(blob, 12 + plainLen + 16);
+    return true;
+}
+
+bool decryptFromB64(const String& inB64, const char* add, size_t addLen, uint8_t* plain, size_t maxPlain, size_t* plainLen) {
+    uint8_t blob[12 + 512 + 16];
+    size_t blobLen = 0;
+    if (!base64Decode(inB64, blob, sizeof(blob), &blobLen)) return false;
+    if (blobLen < 12 + 16) return false;
+    size_t ctLen = blobLen - 12 - 16;
+    if (ctLen > maxPlain) return false;
+    if (mbedtls_gcm_auth_decrypt(&gcmCtx, ctLen, blob, 12,
+            (const uint8_t*)add, addLen, blob + 12 + ctLen, 16, blob + 12, plain) != 0) return false;
+    *plainLen = ctLen;
+    return true;
+}
+
+#else
 static br_aes_ct_ctr_keys bctx;
 static br_gcm_context gcmCtx;
 static bool cryptoReady = false;
@@ -253,6 +312,7 @@ bool decryptFromB64(const String& inB64, const char* add, size_t addLen, uint8_t
     *plainLen = ctLen;
     return true;
 }
+#endif
 
 // ------------------------------ MQTT --------------------------------
 WiFiClientSecure secureClient;
@@ -412,7 +472,12 @@ void mqttReconnect() {
             delay(2000);
             continue;
         }
-        String clientId = "KP_" + dev + "_" + ESP.getChipId();
+        #if defined(ESP32)
+        uint32_t chipId = ESP.getEfuseMac();
+        #else
+        uint32_t chipId = ESP.getChipId();
+        #endif
+        String clientId = "KP_" + dev + "_" + String(chipId);
         String lwt = "{\"v\":1,\"t\":" + String((long)nowEpoch()) + ",\"n\":\"1\",\"c\":\"\"}";
         if (mqtt.connect(clientId.c_str(), topicState().c_str(), 0, true, lwt.c_str())) {
             mqtt.subscribe(topicCmd().c_str());
@@ -499,7 +564,14 @@ void setup() {
     Serial.begin(115200);
     delay(120);
 
+    #ifdef ESP32
+    if (!LittleFS.begin()) {
+        LittleFS.format();
+        LittleFS.begin();
+    }
+#else
     LittleFS.begin();
+#endif
 
     WiFi.mode(WIFI_STA);
     loadOrCreatePairing();
@@ -521,7 +593,11 @@ void setup() {
     pinMode(SENSE_PIN, INPUT);
     pinMode(RESET_BTN_PIN, INPUT_PULLUP);
 
+    #if defined(ESP8266)
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#else
+    WiFi.setSleep(false);
+#endif
     configTime(-3 * 3600, 0, "pool.ntp.org");
 
     String apName = "KeyPro-" + dev.substring(2);
