@@ -4,7 +4,7 @@ Sistema de alarma basado en módulos ESP-01 con control remoto por app Android, 
 
 - Código del firmware: `alarm-keypro/` (este repo privado).
 - Código de la app: repo privado `Gelbittar/key_pro`.
-- APK pública: `https://github.com/Gelbittar/GEYLCA-Assets/releases/download/kp-v1.4.0/keypro.apk` (descarga sin autenticación).
+- APK pública: `https://github.com/Gelbittar/GEYLCA-Assets/releases/download/kp-v1.4.1/keypro.apk` (descarga sin autenticación).
 
 ## Características
 

@@ -35,7 +35,7 @@
 #include <bearssl/bearssl.h>
 #include <time.h>
 
-#define FIRMWARE_VERSION "1.2.0"
+#define FIRMWARE_VERSION "1.2.1"
 
 // ------------------------------ PINES --------------------------------
 #define RELAY_ARM_PIN   1   // GPIO1 / TX
@@ -440,26 +440,32 @@ void senseTick() {
     sampleLast = now;
 
     bool h = digitalRead(SENSE_PIN) == HIGH;
-    if (h != rawHigh) { rawHigh = h; stableSince = now; }
-    if (now - stableSince < DEBOUNCE_MS) return;
-    if (h == stableHigh) return;
-    stableHigh = h;
+    if (h != rawHigh) { rawHigh = h; stableSince = now; }   // rebote: aún no estable
 
-    if (h) {  // flanco HIGH: finalizó un pulso
-        if (inPulse) { inPulse = false; pulseCount++; }
-    } else {  // flanco LOW: inicio de un pulso / señal mantenida
-        if (!windowOpen) { windowOpen = true; windowStart = now; pulseCount = 0; reported = false; }
-        inPulse = true;
+    bool changed = false;
+    if (h != stableHigh && now - stableSince >= DEBOUNCE_MS) {  // flanco ya estable
+        stableHigh = h;
+        changed = true;
+    }
+
+    if (changed) {
+        if (h) {  // flanco HIGH: finalizó un pulso
+            if (inPulse) { inPulse = false; pulseCount++; }
+        } else {  // flanco LOW: inicio de un pulso / señal mantenida
+            if (!windowOpen) { windowOpen = true; windowStart = now; pulseCount = 0; reported = false; }
+            inPulse = true;
+        }
     }
 
     if (!windowOpen) return;
 
+    // cierre de ventana (se evalúa cada tick, no solo en flancos)
     if (now - windowStart >= cfg.senseWindowMs) {
         windowOpen = false;
         inPulse = false;
         if (!reported) {
             reported = true;
-            if (!h && pulseCount == 0) {
+            if (!stableHigh && pulseCount == 0) {
                 setState("TRIGGERED");  // se mantuvo LOW toda la ventana -> ALARMA
             } else if (pulseCount >= 2) {
                 setState("DISARMED");
