@@ -4,7 +4,7 @@ Sistema de alarma basado en módulos ESP-01 con control remoto por app Android, 
 
 - Código del firmware: `alarm-keypro/` (este repo privado).
 - Código de la app: repo privado `Gelbittar/key_pro`.
-- APK pública: `https://github.com/Gelbittar/GEYLCA-Assets/releases/download/kp-v1.0.0/keypro.apk` (descarga sin autenticación).
+- APK pública: `https://github.com/Gelbittar/GEYLCA-Assets/releases/download/kp-v1.4.0/keypro.apk` (descarga sin autenticación).
 
 ## Características
 
@@ -26,15 +26,19 @@ Relés OFF en boot (HIGH).
 
 ## Sensado de sirena (entrada GPIO3)
 
-- 1 pulso corto → **ARMADO** (relé A activa, estado publicado).
-- 2 pulsos cortos (ventana) → **DESARMADO**.
-- Pulso sostenido ≥ umbral (def. 30 s) → **ALARMA ACTIVADA** (evento `ALARM` + relés a pánico).
+El módulo usa **una única ventana de detección** (`senseWindowMs`, por defecto **2000 ms**) ajustable desde la app (Programación → Sensado). Dentro de ese lapso detecta automáticamente y reporta el estado a la app:
+
+- **1 pulso** → **ARMADO** (relé A activa, estado publicado).
+- **2 pulsos** → **DESARMADO**.
+- **Señal mantenida** (LOW toda la ventana) → **ALARMA ACTIVADA** (evento `ALARM`).
+
+Note: la alarma por sirena sostenida se detecta al completarse la ventana (~2 s), no a los 30 s de versiones anteriores.
 
 ## Comandos (menú Control / Programación de la app)
 
 - `arm`, `disarm`, `panic` (relé A, relé A, relé B).
-- `get_state` (demanda estado público al módulo).
-- `set_cfg {relayMode, pulseArmMs, panicMs, pulseMinMs, pulseMaxMs, pulseWindowMs, triggerMs}` (guardado en `/config.json` de LittleFS).
+- `get_state` (demanda estado público al módulo; la respuesta incluye la configuración: `relayMode`, `pulseArmMs`, `panicMs`, `senseWindowMs`).
+- `set_cfg {relayMode, pulseArmMs, panicMs, senseWindowMs}` (guardado en `/config.json` de LittleFS; migra un `pulseWindowMs` previo como nueva ventana).
 
 ## Flasheo y QR de fábrica
 
