@@ -35,7 +35,7 @@
 #include <bearssl/bearssl.h>
 #include <time.h>
 
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "1.1.0"
 
 // ------------------------------ PINES --------------------------------
 #define RELAY_ARM_PIN   1   // GPIO1 / TX
@@ -51,7 +51,7 @@
 // Umbrales de sensado (configurables via set_cfg)
 #define DEF_PULSE_MIN_MS    120
 #define DEF_PULSE_MAX_MS    3000
-#define DEF_PULSE_WINDOW_MS 2500
+#define DEF_PULSE_WINDOW_MS 2000
 #define DEF_TRIGGER_MS      30000
 // Comportamiento del relé ARMA: 0=mantenido, 1=pulso
 #define DEF_RELAY_MODE      0
@@ -309,9 +309,16 @@ void setState(const String& st) {
         if (st == "DISARMED") publishEvent("DISARMED");
         if (st == "TRIGGERED") publishEvent("ALARM");
     }
-    DynamicJsonDocument doc(128);
+    DynamicJsonDocument doc(512);
     doc["st"] = cfg.state;
     doc["dev"] = dev;
+    doc["relayMode"] = cfg.relayMode;
+    doc["pulseArmMs"] = cfg.pulseArmMs;
+    doc["panicMs"] = cfg.panicMs;
+    doc["pulseMinMs"] = cfg.pulseMinMs;
+    doc["pulseMaxMs"] = cfg.pulseMaxMs;
+    doc["pulseWindowMs"] = cfg.pulseWindowMs;
+    doc["triggerMs"] = cfg.triggerMs;
     String body;
     serializeJson(doc, body);
     publishCrypto(topicState().c_str(), true, body.c_str());
