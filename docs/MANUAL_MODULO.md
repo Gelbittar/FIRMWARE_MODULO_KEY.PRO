@@ -36,6 +36,15 @@ El módulo, la primera vez, arranca en modo AP (punto de acceso). Conectarse a s
 
 Los datos quedan guardados en la NVS de la ESP32. Comandos de mantenimiento por MQTT: `reset_wifi`, `factory_reset`.
 
+## Botón de programación (GPIO4, P1)
+
+Además de la programación por app/Master, el módulo permite dos acciones básicas con su botón físico:
+
+- Mantener **≥ 2 s** → entra en **modo programación local**: el LED parpadea 5 veces para confirmar. La primera llave que se presente en el lector se guarda en el **primer slot libre** como `"Local Slot N"` y el modo termina (se sale con la llave aprendida). Sirve para aprender una llave sin necesidad de la app.
+- Mantener **≥ 5 s** → borra las credenciales WiFi (NVS) y reinicia; el módulo vuelve a arrancar en **modo AP** para reconfigurar la red.
+
+No hay menú por pulsador para el resto de la configuración (roles/PINs, modo de seguridad, slot/apto, tiempo de relé, suspensión de casillas): eso se realiza por MQTT (app Master/Operador).
+
 ## Claves de roles (v2.3.0) — PINs de 6 dígitos
 
 El módulo autentica por HMAC los **PINs de rol** (exactamente 6 dígitos numéricos). Jerarquía de permisos por rango: **master (3) > instalador (2) > admin (1)**; una acción exige `rango(rol) >= rango(requerido)`.
