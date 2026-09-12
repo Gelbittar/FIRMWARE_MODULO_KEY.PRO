@@ -35,7 +35,7 @@
 #include <bearssl/bearssl.h>
 #include <time.h>
 
-#define FIRMWARE_VERSION "1.1.0"
+#define FIRMWARE_VERSION "1.2.0"
 
 // ------------------------------ PINES --------------------------------
 #define RELAY_ARM_PIN   1   // GPIO1 / TX
@@ -48,11 +48,10 @@
 #define MQTT_PORT 8883
 #define MQTT_TLS_INSECURE 1
 
-// Umbrales de sensado (configurables via set_cfg)
-#define DEF_PULSE_MIN_MS    120
-#define DEF_PULSE_MAX_MS    3000
-#define DEF_PULSE_WINDOW_MS 2000
-#define DEF_TRIGGER_MS      30000
+// Umbral de sensado (configurable via set_cfg): una única ventana general.
+// Dentro de ese transcurso el módulo detecta automáticamente si recibió
+// 1 pulso (ARMADO), 2 pulsos (DESARMADO) o la señal se mantuvo (ALARMA).
+#define DEF_SENSE_WINDOW_MS 2000
 // Comportamiento del relé ARMA: 0=mantenido, 1=pulso
 #define DEF_RELAY_MODE      0
 #define DEF_PULSE_ARM_MS    300
@@ -134,10 +133,7 @@ struct Cfg {
     uint8_t relayMode = DEF_RELAY_MODE;   // 0 mantenido / 1 pulso
     unsigned long pulseArmMs = DEF_PULSE_ARM_MS;
     unsigned long panicMs = DEF_PANIC_MS;
-    unsigned long pulseMinMs = DEF_PULSE_MIN_MS;
-    unsigned long pulseMaxMs = DEF_PULSE_MAX_MS;
-    unsigned long pulseWindowMs = DEF_PULSE_WINDOW_MS;
-    unsigned long triggerMs = DEF_TRIGGER_MS;
+    unsigned long senseWindowMs = DEF_SENSE_WINDOW_MS;
     unsigned long resetHoldMs = DEF_RESET_HOLD_MS;
     String state = "UNKNOWN";
 } cfg;
@@ -192,10 +188,7 @@ void loadConfig() {
                 cfg.relayMode = doc["relayMode"] | cfg.relayMode;
                 cfg.pulseArmMs = doc["pulseArmMs"] | cfg.pulseArmMs;
                 cfg.panicMs = doc["panicMs"] | cfg.panicMs;
-                cfg.pulseMinMs = doc["pulseMinMs"] | cfg.pulseMinMs;
-                cfg.pulseMaxMs = doc["pulseMaxMs"] | cfg.pulseMaxMs;
-                cfg.pulseWindowMs = doc["pulseWindowMs"] | cfg.pulseWindowMs;
-                cfg.triggerMs = doc["triggerMs"] | cfg.triggerMs;
+                cfg.senseWindowMs = doc["senseWindowMs"] | doc["pulseWindowMs"] | cfg.senseWindowMs;
                 cfg.state = doc["state"] | "UNKNOWN";
             }
             f.close();
@@ -208,10 +201,7 @@ void saveConfig() {
     doc["relayMode"] = cfg.relayMode;
     doc["pulseArmMs"] = cfg.pulseArmMs;
     doc["panicMs"] = cfg.panicMs;
-    doc["pulseMinMs"] = cfg.pulseMinMs;
-    doc["pulseMaxMs"] = cfg.pulseMaxMs;
-    doc["pulseWindowMs"] = cfg.pulseWindowMs;
-    doc["triggerMs"] = cfg.triggerMs;
+    doc["senseWindowMs"] = cfg.senseWindowMs;
     doc["state"] = cfg.state;
     File f = LittleFS.open(configPath, "w");
     if (f) { serializeJson(doc, f); f.close(); }
@@ -315,10 +305,7 @@ void setState(const String& st) {
     doc["relayMode"] = cfg.relayMode;
     doc["pulseArmMs"] = cfg.pulseArmMs;
     doc["panicMs"] = cfg.panicMs;
-    doc["pulseMinMs"] = cfg.pulseMinMs;
-    doc["pulseMaxMs"] = cfg.pulseMaxMs;
-    doc["pulseWindowMs"] = cfg.pulseWindowMs;
-    doc["triggerMs"] = cfg.triggerMs;
+    doc["senseWindowMs"] = cfg.senseWindowMs;
     String body;
     serializeJson(doc, body);
     publishCrypto(topicState().c_str(), true, body.c_str());
@@ -372,10 +359,8 @@ void applyCfg(const DynamicJsonDocument& d) {
     if (d.containsKey("relayMode")) cfg.relayMode = d["relayMode"] | 0;
     if (d.containsKey("pulseArmMs")) cfg.pulseArmMs = d["pulseArmMs"] | DEF_PULSE_ARM_MS;
     if (d.containsKey("panicMs")) cfg.panicMs = d["panicMs"] | DEF_PANIC_MS;
-    if (d.containsKey("pulseMinMs")) cfg.pulseMinMs = d["pulseMinMs"] | DEF_PULSE_MIN_MS;
-    if (d.containsKey("pulseMaxMs")) cfg.pulseMaxMs = d["pulseMaxMs"] | DEF_PULSE_MAX_MS;
-    if (d.containsKey("pulseWindowMs")) cfg.pulseWindowMs = d["pulseWindowMs"] | DEF_PULSE_WINDOW_MS;
-    if (d.containsKey("triggerMs")) cfg.triggerMs = d["triggerMs"] | DEF_TRIGGER_MS;
+    if (d.containsKey("senseWindowMs")) cfg.senseWindowMs = d["senseWindowMs"] | DEF_SENSE_WINDOW_MS;
+    else if (d.containsKey("pulseWindowMs")) cfg.senseWindowMs = d["pulseWindowMs"] | DEF_SENSE_WINDOW_MS;
     saveConfig();
     publishEvent("CONFIG_SAVED");
 }
@@ -440,22 +425,14 @@ void mqttReconnect() {
 }
 
 // --------------------------- SENSADO (sirena) -------------------------
+// Una única ventana (cfg.senseWindowMs): dentro de ese transcurso el módulo
+// detecta automáticamente si recibió 1 pulso (ARMADO), 2 pulsos (DESARMADO)
+// o la señal se mantuvo LOW toda la ventana (ALARMA). El reporte a la app es
+// el propio estado/evento publicado por setState().
 bool rawHigh = true, stableHigh = true;
-unsigned long stableSince = 0, sampleLast = 0, pulseStart = 0, windowStart = 0;
-bool inPulse = false, windowOpen = false;
+unsigned long stableSince = 0, sampleLast = 0, windowStart = 0;
+bool inPulse = false, windowOpen = false, reported = false;
 int pulseCount = 0;
-bool triggeredFired = false;
-
-void fireTriggered() {
-    if (cfg.state != "TRIGGERED") {
-        cfg.state = "TRIGGERED";
-        saveConfig();
-        publishEvent("ALARM");
-    }
-    publishCrypto(topicState().c_str(), true, "{\"st\":\"TRIGGERED\"}");
-    triggeredFired = true;
-    windowOpen = false; pulseCount = 0;
-}
 
 void senseTick() {
     unsigned long now = millis();
@@ -468,36 +445,30 @@ void senseTick() {
     if (h == stableHigh) return;
     stableHigh = h;
 
-    if (h) {  // flanco HIGH: fin de pulso (o fin de alarma sostenida)
-        if (inPulse) {
-            inPulse = false;
-            unsigned long d = now - pulseStart;
-            if (!triggeredFired && d >= cfg.triggerMs) {
-                fireTriggered();
-            } else if (!triggeredFired && d >= cfg.pulseMinMs) {
-                pulseCount++;
+    if (h) {  // flanco HIGH: finalizó un pulso
+        if (inPulse) { inPulse = false; pulseCount++; }
+    } else {  // flanco LOW: inicio de un pulso / señal mantenida
+        if (!windowOpen) { windowOpen = true; windowStart = now; pulseCount = 0; reported = false; }
+        inPulse = true;
+    }
+
+    if (!windowOpen) return;
+
+    if (now - windowStart >= cfg.senseWindowMs) {
+        windowOpen = false;
+        inPulse = false;
+        if (!reported) {
+            reported = true;
+            if (!h && pulseCount == 0) {
+                setState("TRIGGERED");  // se mantuvo LOW toda la ventana -> ALARMA
+            } else if (pulseCount >= 2) {
+                setState("DISARMED");
+            } else if (pulseCount == 1) {
+                setState("ARMED");
             }
         }
-    } else {  // flanco LOW: inicio de pulso
-        if (!windowOpen) { windowOpen = true; windowStart = now; pulseCount = 0; }
-        inPulse = true;
-        pulseStart = now;
-    }
-
-    // alarma sostenida mientras sigue LOW
-    if (inPulse && !triggeredFired && now - pulseStart >= cfg.triggerMs) {
-        fireTriggered();
-    }
-
-    // cierre de ventana para decidir 1 (ARMADO) vs 2 (DESARMADO) pulsos
-    if (windowOpen && !inPulse && !triggeredFired && now - windowStart > cfg.pulseWindowMs) {
-        windowOpen = false;
-        if (pulseCount >= 2) setState("DISARMED");
-        else if (pulseCount == 1) setState("ARMED");
         pulseCount = 0;
     }
-
-    if (!inPulse && triggeredFired) triggeredFired = false;
 }
 
 // --------------------------- RESET CONFIG ----------------------------
