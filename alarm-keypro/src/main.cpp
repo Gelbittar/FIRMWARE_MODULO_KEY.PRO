@@ -518,7 +518,6 @@ void setup() {
     LittleFS.begin();
 
     WiFi.mode(WIFI_STA);
-    WiFi.macAddress((uint8_t*)&stableHigh); // no-op de warm-up
     loadOrCreatePairing();
     loadConfig();
     cryptoInit();
