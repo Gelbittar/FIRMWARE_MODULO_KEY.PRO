@@ -61,16 +61,20 @@ Permisos operativos clave: `open`, `reset_wifi`, `clear_slot`, `set_relay`, `get
 
 En el arranque el módulo normaliza la NVS: cualquier clave de rol que no cumpla `^\d{6}$` se restablece a su fábrica (**admin `123456`**, **instalador `654321`**), de modo que tras actualizar a v2.3.0 los PINs quedan fábrica si antes había claves largas.
 
-## Modo de seguridad (v2.3.2)
+## Modo de seguridad (v2.4.0)
 
-El módulo tiene un **modo de seguridad** (bits por llave: 8, 4 o 1 byte) configurable por la app Master (`set_security_mode`). En v2.3.x se corrigieron bugs que hacían **perder el modo** y las llaves:
+El módulo tiene un **modo de seguridad** (bits por llave) configurable por la app Master (`set_security_mode`):
 
+| Modo | Guarda por casilla | Dirección | Uso |
+|---|---|---|---|
+| **3 (SÓVICA)** | serie de 3 bytes + pad `0x00` (4 bytes) | `(slot-1)*4` | **Compatibilidad total con memorias SÓVICA** (default de fábrica desde v2.4.0) |
+| **4** | primeros 4 bytes de la ROM | `slot*4` | Standard |
+| **8** | ROM completa (7 bytes + CRC) | `slot*8` | Extended |
+
+- **v2.4.0** introduce el **modo SÓVICA (3)** y lo deja como **valor de fábrica** (`factory_reset` vuelve a modo 3). Para usar una memoria extraída de un módulo SÓVICA en el key-pro basta instalarla sin cambiar de modo: las llaves ya grabadas se validan contra la serie completa del iButton (el programador SÓVICA solo guarda `[serie[0..2] + pad]` en cada casilla de 4 bytes).
 - `wipe_slots` ya **no** borra la configuración (antes limpiaba toda la NVS y borraba `secMode`). Ahora solo elimina las casillas de la EEPROM.
-- `factory_reset` deja el módulo en un estado consistente: re-genera `devId`, vuelve a **modo 8** y `relay_time` de fábrica, y guarda `secMode` correctamente.
-- El **modo de seguridad y las llaves persisten a través de reinicios** (verificado: reinicio del módulo en modo 4 mantiene el modo intacto y las llaves activas).
-- v2.3.2 corrige la lectura de `secMode`/`relay_time` en el arranque: `preferences` ahora abre `geylca_apt` antes de leer (una regresión de v2.3.1 podía devolver modo 8 por defecto según el boot).
-
-Actualizar a v2.3.2 **no borra** llaves ni configuración; si durante un OTA fallido el módulo vuelve a v2.3.0/v2.3.0-viejo, sus llaves siguen en la EEPROM (evidenciable con `get_slot_info`).
+- El **modo de seguridad y las llaves persisten a través de reinicios**.
+- Cambiar de modo con `set_security_mode` **formatea la EEPROM** (borra todas las casillas).
 
 ## Placas ESP compatibles (sin modificar el código)
 

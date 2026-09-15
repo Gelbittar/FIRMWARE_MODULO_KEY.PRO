@@ -882,7 +882,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
         <h3>Modo de Seguridad</h3>
         <div class="form-row">
           <div class="field"><label>Tipo</label>
-            <select id="secModeSelect"><option value="4">4 bytes (standard)</option><option value="8">8 bytes (extended)</option></select>
+            <select id="secModeSelect"><option value="3">SÓVICA (3 bytes)</option><option value="4">4 bytes (standard)</option><option value="8">8 bytes (extended)</option></select>
           </div>
           <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetSecMode" disabled>Guardar</button></div>
         </div>
@@ -1427,7 +1427,7 @@ function processEvent(msg){
 
   if(d.max_slots!==undefined)document.getElementById("statTotal").textContent=d.max_slots;
   if(d.free_slots!==undefined){document.getElementById("statFree").textContent=d.free_slots;slotFreeKnown=d.free_slots}
-  if(d.security_mode!==undefined){document.getElementById("statSecMode").textContent=d.security_mode+" bytes";securityMode=d.security_mode}
+  if(d.security_mode!==undefined){securityMode=d.security_mode;document.getElementById("statSecMode").textContent=d.security_mode===3?"SÓVICA (3 bytes)":d.security_mode+" bytes";document.getElementById("secModeSelect").value=d.security_mode}
   if(d.relay_time!==undefined)document.getElementById("relayTime").value=d.relay_time;
 
   if(actionField==="Key learned"){

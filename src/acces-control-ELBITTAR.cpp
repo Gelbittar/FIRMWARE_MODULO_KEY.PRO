@@ -34,7 +34,7 @@
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.3.2"
+#define FIRMWARE_VERSION "2.4.0"
 
 #define PIN_LEN 6
 #define DEFAULT_ADMIN_PIN "123456"
@@ -125,7 +125,8 @@ unsigned long tiempoInicioPress = 0;
 unsigned long ultimoIntentoMQTT = 0;
 const unsigned long intervaloReintentoMQTT = 5000;
 int relayTimeDefault = 1200;
-int securityMode = 8;
+#define SECMODE_SOVICA 3
+int securityMode = SECMODE_SOVICA;
 
 bool learningMode = false;
 unsigned long learningStartedAt = 0;
@@ -269,6 +270,63 @@ void readEEPROM(unsigned int eeaddress, byte *buffer, int length) {
     }
 }
 
+// ---------------------------------------------------------------
+// Modo SÓVICA (compatibilidad con memorias de módulos SÓVICA)
+// ---------------------------------------------------------------
+// El programador SÓVICA guarda cada llave en una casilla de 4 bytes en
+// offset N*4 con formato [serie0, serie1, serie2, pad]. La llave iButton
+// es [0x81][serie 6B][CRC]; el módulo solo compara los 3 primeros bytes
+// de la serie (ROM[1..3]).
+//
+// securityMode: 8 = guarda ROM completa (7B+CRC)
+//               4 = guarda primeros 4 bytes de la ROM
+//               3 = SÓVICA: guarda serie[0..2] + pad 0x00 por casilla
+//
+// En modo SÓVICA la casilla 1 del módulo corresponde al offset 0 de la
+// memoria (casilla 0000 del programador SÓVICA), respetando el layout.
+bool sovicaEnabled() {
+    return securityMode == SECMODE_SOVICA;
+}
+
+// Dirección de la casilla slot en EEPROM.
+unsigned int slotAddr(int slot) {
+    if (sovicaEnabled()) return (unsigned int)(slot - 1) * 4;
+    return (unsigned int)slot * securityMode;
+}
+
+// Bytes físicos usados por cada casilla.
+int slotBytes() {
+    return sovicaEnabled() ? 4 : securityMode;
+}
+
+// Aplica un modo de seguridad validado y recalcula slotSize.
+void applySecurityMode(int mode) {
+    if (mode != SECMODE_SOVICA && mode != 4 && mode != 8) mode = SECMODE_SOVICA;
+    securityMode = mode;
+    slotSize = slotBytes();
+}
+
+// Compara la ROM leída (8B) contra la casilla almacenada.
+bool keyMatches(byte stored[], byte rom[]) {
+    if (sovicaEnabled()) {
+        return stored[0] == rom[1] && stored[1] == rom[2] && stored[2] == rom[3];
+    }
+    for (int b = 0; b < securityMode; b++) {
+        if (stored[b] != rom[b]) return false;
+    }
+    return true;
+}
+
+// Escribe una ROM completa (8B) en la casilla usando el formato del modo.
+void writeFullRomToSlot(int slot, byte fullRom[8]) {
+    if (sovicaEnabled()) {
+        byte data[4] = {fullRom[1], fullRom[2], fullRom[3], 0x00};
+        writeEEPROM(slotAddr(slot), data, 4);
+    } else {
+        writeEEPROM(slotAddr(slot), fullRom, securityMode);
+    }
+}
+
 static inline void ocSetBit(int slot, bool occ) {
     if (slot < 1 || slot > MAX_SLOTS) return;
     int idx = (slot - 1) >> 3;
@@ -297,11 +355,11 @@ void ocRebuildFromEEPROM() {
     for (int startSlot = 1; startSlot <= MAX_SLOTS; startSlot += slotsPerBlock) {
         int cb = slotsPerBlock;
         if (startSlot + cb - 1 > MAX_SLOTS) cb = MAX_SLOTS - startSlot + 1;
-        readEEPROM(startSlot * slotSize, blockBuffer, cb * securityMode);
+        readEEPROM(slotAddr(startSlot), blockBuffer, cb * slotBytes());
         for (int i = 0; i < cb; i++) {
-            int off = i * securityMode;
+            int off = i * slotBytes();
             bool occ = false;
-            for (int b = 0; b < securityMode; b++) {
+            for (int b = 0; b < slotBytes(); b++) {
                 if (blockBuffer[off + b] != 0x00) { occ = true; break; }
             }
             if (occ) {
@@ -439,13 +497,13 @@ bool publicarLoteSlots() {
     }
 
     byte blockBuffer[512];
-    readEEPROM(slotsBatchCursor * slotSize, blockBuffer, cb * securityMode);
+    readEEPROM(slotAddr(slotsBatchCursor), blockBuffer, cb * slotBytes());
     Serial.printf("[SLOTS] batch start=%d cb=%d\n", slotsBatchCursor, cb);
 
     bool batchEmpty = true;
     for (int i = 0; i < cb; i++) {
-        int off = i * securityMode;
-        for (int b = 0; b < securityMode; b++) {
+        int off = i * slotBytes();
+        for (int b = 0; b < slotBytes(); b++) {
             if (blockBuffer[off + b] != 0x00) { batchEmpty = false; break; }
         }
         if (!batchEmpty) break;
@@ -468,14 +526,14 @@ bool publicarLoteSlots() {
     preferences.begin("geylca_apt", true);
     for (int i = 0; i < cb; i++) {
         int slot = slotsBatchCursor + i;
-        int off = i * securityMode;
+        int off = i * slotBytes();
         bool occ = false;
-        for (int b = 0; b < securityMode; b++) {
+        for (int b = 0; b < slotBytes(); b++) {
             if (blockBuffer[off + b] != 0x00) { occ = true; break; }
         }
         if (!occ) continue;
         String keyHex = "";
-        for (int b = 0; b < securityMode; b++) {
+        for (int b = 0; b < slotBytes(); b++) {
             if (blockBuffer[off + b] < 16) keyHex += "0";
             keyHex += String(blockBuffer[off + b], HEX);
         }
@@ -715,17 +773,23 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         String keyHex = doc["key"];
         String apto = doc["apto"];
         int bytesToStore = securityMode;
-        if (slot > 0 && slot <= MAX_SLOTS && keyHex.length() >= (bytesToStore * 2)) {
+        int requiredLen = sovicaEnabled() ? 16 : (bytesToStore * 2);
+        if (slot > 0 && slot <= MAX_SLOTS && keyHex.length() >= requiredLen) {
             byte keyBytes[8] = {0};
-            hexToBytes(keyHex, keyBytes, bytesToStore);
-            writeEEPROM(slot * slotSize, keyBytes, bytesToStore);
+            hexToBytes(keyHex, keyBytes, 8);
+            if (sovicaEnabled()) {
+                writeFullRomToSlot(slot, keyBytes);
+            } else {
+                writeEEPROM(slotAddr(slot), keyBytes, bytesToStore);
+            }
             ocSetBit(slot, true);
             preferences.begin("geylca_apt", false);
             preferences.putString(("s_" + String(slot)).c_str(), apto);
             if (preferences.isKey(("sus_" + String(slot)).c_str())) preferences.remove(("sus_" + String(slot)).c_str());
             preferences.end();
             writeLog(2, slot, 1);
-            String storedHex = keyHex.substring(0, bytesToStore * 2);
+            String storedHex = sovicaEnabled() ? String(keyBytes[1], HEX) + String(keyBytes[2], HEX) + String(keyBytes[3], HEX)
+                                                : keyHex.substring(0, bytesToStore * 2);
             String keyUpd = "{\"status\":\"OK\",\"message\":\"Key updated\",\"slot\":" + String(slot) +
                             ",\"key\":\"" + storedHex +
                             "\",\"apto\":\"" + apto + "\"}";
@@ -734,7 +798,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
     else if (action == "set_security_mode" && role == "master") {
         int mode = doc["mode"].as<int>();
-        if (mode == 4 || mode == 8) {
+        if (mode == SECMODE_SOVICA || mode == 4 || mode == 8) {
             byte emptyBytes[32] = {0x00};
             unsigned int totalBytes = (unsigned int)MAX_SLOTS * 8;
             int cnt = 0;
@@ -749,8 +813,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
                 preferences.remove(("s_" + String(slot)).c_str());
                 if (preferences.isKey(("sus_" + String(slot)).c_str())) preferences.remove(("sus_" + String(slot)).c_str());
             }
-            securityMode = mode;
-            slotSize = mode;
+            applySecurityMode(mode);
             preferences.putInt("secMode", securityMode);
             preferences.end();
             ocClearAll();
@@ -805,25 +868,22 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         }
 
         byte existing[8] = {0};
-        readEEPROM(targetSlot * slotSize, existing, securityMode);
+        readEEPROM(slotAddr(targetSlot), existing, slotBytes());
         bool occupied = false;
-        for (int b = 0; b < securityMode; b++) {
+        for (int b = 0; b < slotBytes(); b++) {
             if (existing[b] != 0x00) { occupied = true; break; }
         }
         byte sk[8] = {0};
-        hexToBytes(savedKey, sk, securityMode);
-        bool mismo = true;
-        for (int b = 0; b < securityMode; b++) {
-            if (existing[b] != sk[b]) { mismo = false; break; }
-        }
+        hexToBytes(savedKey, sk, 8);
+        bool mismo = keyMatches(existing, sk);
         if (occupied && !mismo) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Slot already in use\"}");
             return;
         }
 
         byte keyBytes[8] = {0};
-        hexToBytes(savedKey, keyBytes, securityMode);
-        writeEEPROM(targetSlot * slotSize, keyBytes, securityMode);
+        hexToBytes(savedKey, keyBytes, 8);
+        writeFullRomToSlot(targetSlot, keyBytes);
         ocSetBit(targetSlot, true);
         preferences.begin("geylca_apt", false);
         preferences.putString(("s_" + String(targetSlot)).c_str(), targetApto);
@@ -861,7 +921,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         int slot = doc["slot"];
         if (slot > 0 && slot <= MAX_SLOTS) {
             byte emptyBytes[8] = {0x00};
-            writeEEPROM(slot * slotSize, emptyBytes, securityMode);
+            writeEEPROM(slotAddr(slot), emptyBytes, slotBytes());
             ocSetBit(slot, false);
             preferences.begin("geylca_apt", false);
             preferences.remove(("s_" + String(slot)).c_str());
@@ -914,9 +974,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         preferences.begin("geylca_apt", false);
         preferences.clear();
         preferences.putString("devId", deviceId);
-        preferences.putInt("secMode", 8);
-        securityMode = 8;
-        slotSize = 8;
+        applySecurityMode(SECMODE_SOVICA);
+        preferences.putInt("secMode", SECMODE_SOVICA);
         preferences.putInt("relayTime", 1200);
         preferences.end();
         preferences.begin("geylca_logs", true);
@@ -962,15 +1021,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         int slot = doc["slot"] | 0;
         if (slot > 0 && slot <= MAX_SLOTS) {
             byte keyBytes[8] = {0};
-            readEEPROM(slot * slotSize, keyBytes, securityMode);
+            readEEPROM(slotAddr(slot), keyBytes, slotBytes());
 
             bool isEmpty = true;
-            for (int b = 0; b < securityMode; b++) {
+            for (int b = 0; b < slotBytes(); b++) {
                 if (keyBytes[b] != 0x00) { isEmpty = false; break; }
             }
 
             String keyHex = "";
-            for (int i = 0; i < securityMode; i++) {
+            for (int i = 0; i < slotBytes(); i++) {
                 if (keyBytes[i] < 16) keyHex += "0";
                 keyHex += String(keyBytes[i], HEX);
             }
@@ -1002,9 +1061,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             return;
         }
         byte keyBytes[8] = {0};
-        readEEPROM(slot * slotSize, keyBytes, securityMode);
+        readEEPROM(slotAddr(slot), keyBytes, slotBytes());
         bool isEmpty = true;
-        for (int b = 0; b < securityMode; b++) {
+        for (int b = 0; b < slotBytes(); b++) {
             if (keyBytes[b] != 0x00) { isEmpty = false; break; }
         }
         if (isEmpty) {
@@ -1380,8 +1439,7 @@ void setup() {
         preferences.begin("geylca_apt", true);
     }
     relayTimeDefault = preferences.getInt("relayTime", 1200);
-    securityMode = preferences.getInt("secMode", 8);
-    slotSize = securityMode;
+    applySecurityMode(preferences.getInt("secMode", SECMODE_SOVICA));
     preferences.end();
 
     preferences.begin("geylca_sec", false);
@@ -1584,7 +1642,7 @@ void loop() {
         if (modoProgramacionLocal) {
             int slotLibre = findFreeSlot();
             if (slotLibre != -1) {
-                writeEEPROM(slotLibre * slotSize, addr, securityMode);
+                writeFullRomToSlot(slotLibre, addr);
                 ocSetBit(slotLibre, true);
                 preferences.begin("geylca_apt", false);
                 String aptoDefault = "Local Slot " + String(slotLibre);
@@ -1611,11 +1669,8 @@ void loop() {
         byte oneKey[8];
         for (int slot = 1; slot <= MAX_SLOTS && !accesoPermitido; slot++) {
             if (!ocIsOccupied(slot)) continue;
-            readEEPROM(slot * slotSize, oneKey, securityMode);
-            bool coincide = true;
-            for (int b = 0; b < securityMode; b++) {
-                if (oneKey[b] != addr[b]) { coincide = false; break; }
-            }
+            readEEPROM(slotAddr(slot), oneKey, slotBytes());
+            bool coincide = keyMatches(oneKey, addr);
             if (coincide) {
                 preferences.begin("geylca_apt", true);
                 bool isSuspended = preferences.getBool(("sus_" + String(slot)).c_str(), false);
@@ -1632,11 +1687,8 @@ void loop() {
             ocRebuildFromEEPROM();
             for (int slot = 1; slot <= MAX_SLOTS && !accesoPermitido; slot++) {
                 if (!ocIsOccupied(slot)) continue;
-                readEEPROM(slot * slotSize, oneKey, securityMode);
-                bool coincide = true;
-                for (int b = 0; b < securityMode; b++) {
-                    if (oneKey[b] != addr[b]) { coincide = false; break; }
-                }
+                readEEPROM(slotAddr(slot), oneKey, slotBytes());
+                bool coincide = keyMatches(oneKey, addr);
                 if (coincide) {
                     preferences.begin("geylca_apt", true);
                     bool isSuspended = preferences.getBool(("sus_" + String(slot)).c_str(), false);
