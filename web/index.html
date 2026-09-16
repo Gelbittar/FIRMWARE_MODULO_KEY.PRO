@@ -11,6 +11,7 @@
 <title>GEYLCA Access Control</title>
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="lib/jsqr.min.js"></script>
 <style>*{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0a1628;
@@ -748,6 +749,8 @@ tr:hover td{background:rgba(0,212,255,.03)}
       <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Configuración inicial del módulo. Se realiza <b>una sola vez</b> por instalación de la app.</p>
       <label for="rawDataInput">Data Cruda del Módulo</label>
       <textarea id="rawDataInput" rows="2" placeholder='{"device_id":"modulo01","secret":"AB12...DEF"}'></textarea>
+      <button id="btnScanQrWiz" style="width:100%;margin:.4rem 0 .2rem;padding:.6rem;background:linear-gradient(135deg,var(--accent),#00a88a);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600">&#128247; Escanear QR de emparejamiento</button>
+      <input type="file" id="fileQrWiz" accept="image/*" style="display:none">
       <button id="btnParseRaw" class="accent">Cargar Data Cruda</button>
       <div class="login-divider"><span>o ingrese manualmente</span></div>
       <label for="loginDeviceId">Device ID</label>
@@ -1809,6 +1812,82 @@ function showLoginView(){
   setLoginView("login");
 }
 
+function parseQrDataGeylca(text){
+  try{
+    const j=JSON.parse(text);
+    const id=j.device_id||j.deviceId||(j.dev&&/^(\w+_)?\d+$/i.test(j.dev)?j.dev:null);
+    const sec=j.secret;
+    if(id&&sec&&String(sec).length>=8)return {device_id:String(id).trim(),secret:String(sec).trim()};
+  }catch(e){}
+  return null;
+}
+
+function loadQrImage(dataUrl){
+  return new Promise(function(res,rej){
+    const img=new Image();
+    img.onload=function(){res(img);};
+    img.onerror=rej;
+    img.src=dataUrl;
+  });
+}
+
+function qrCanvasData(img,max){
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(max&&Math.max(w,h)>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  const ctx=c.getContext("2d");ctx.drawImage(img,0,0,w,h);
+  return ctx.getImageData(0,0,w,h);
+}
+
+function tryJsQrDecode(id){
+  let r=null;
+  if(window.jsQR){try{r=jsQR(id.data,id.width,id.height);}catch(e){}}
+  if(!r){
+    const d=new Uint8ClampedArray(id.data.length);
+    for(let i=0;i<id.data.length;i+=4){
+      d[i]=255-id.data[i];d[i+1]=255-id.data[i+1];
+      d[i+2]=255-id.data[i+2];d[i+3]=255;
+    }
+    try{r=jsQR(d,id.width,id.height);}catch(e){}
+  }
+  return r;
+}
+
+async function decodeQrImage(dataUrl){
+  const img=await loadQrImage(dataUrl);
+  for(const s of [1400,900,600]){
+    const id=qrCanvasData(img,s);
+    const code=tryJsQrDecode(id);
+    if(code&&code.data)return code.data;
+  }
+  return null;
+}
+
+async function scanModuleQr(){
+  try{
+    let dataUrl=null;
+    if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Camera){
+      const photo=await window.Capacitor.Plugins.Camera.getPhoto({resultType:"DataUrl",source:"CAMERA",quality:80});
+      dataUrl=photo.dataUrl;
+    }else{
+      dataUrl=await new Promise(function(res,rej){
+        const f=document.getElementById("fileQrWiz");
+        f.onchange=function(){const fr=new FileReader();
+          fr.onload=function(){res(fr.result);};fr.onerror=rej;fr.readAsDataURL(f.files[0]);};
+        f.click();
+      });
+    }
+    toast("Procesando imagen…");
+    const text=await decodeQrImage(dataUrl);
+    if(!text){toast("No se detectó el QR: acerque el teléfono, mejore la iluminación o use la entrada manual");return;}
+    const p=parseQrDataGeylca(text);
+    if(!p){toast("QR leído pero los datos no son válidos (device_id + secret)");return;}
+    document.getElementById("rawDataInput").value=JSON.stringify({device_id:p.device_id,secret:p.secret});
+    parseRawData();
+    toast("QR OK: "+p.device_id);
+  }catch(e){toast("Error de cámara: "+e.message);}
+}
+
 function parseRawData(){
   const val=document.getElementById("rawDataInput").value.trim();
   const errEl=document.getElementById("loginErr");
@@ -2147,6 +2226,7 @@ window.GEYLCA.deleteSlot=function(slot){
 function initEvents(){
   document.getElementById("loginBtn").addEventListener("click",startLogin);
   document.getElementById("btnParseRaw").addEventListener("click",parseRawData);
+  document.getElementById("btnScanQrWiz").addEventListener("click",scanModuleQr);
   document.getElementById("rawDataInput").addEventListener("keydown",e=>{if(e.key==="Enter")parseRawData()});
   document.getElementById("btnWizardContinue").addEventListener("click",wizardContinue);
   document.getElementById("loginDeviceId").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("wizSecret").focus()});

@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Prepare web assets
-        run: mkdir -p app/web && cp web/index.html app/web/index.html
+        run: mkdir -p app/web && cp web/index.html app/web/index.html && cp -r web/lib app/web/lib
       - name: Install app deps
         working-directory: app
         run: npm install
@@ -53,7 +53,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Prepare web assets
-        run: mkdir -p app-master/web && cp web/master.html app-master/web/index.html
+        run: mkdir -p app-master/web && cp web/master.html app-master/web/index.html && cp -r web/lib app-master/web/lib
       - name: Install app deps
         working-directory: app-master
         run: npm install

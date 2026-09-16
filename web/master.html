@@ -11,6 +11,7 @@
 <title>GEYLCA Access Control</title>
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="lib/jsqr.min.js"></script>
 <style>*{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0a1628;
@@ -748,6 +749,8 @@ tr:hover td{background:rgba(0,212,255,.03)}
       <div id="moduleAddArea" style="display:none">
         <label for="moduleAddRaw">Data Cruda del módulo</label>
         <textarea id="moduleAddRaw" rows="3" placeholder='{"device_id":"mod_...","secret":"..."}'></textarea>
+        <button id="btnScanQrAdd" class="btn" style="width:100%;margin:0 0 .7rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;border:none">&#128247; Escanear QR de emparejamiento</button>
+        <input type="file" id="fileQrAdd" accept="image/*" style="display:none">
         <div class="row" style="justify-content:flex-end">
           <button class="btn" id="btnModuleAddCancel">Cancelar</button>
           <button class="btn accent" id="btnModuleAddSave">Agregar</button>
@@ -1783,6 +1786,82 @@ function backToModuleList(){
   document.getElementById("moduleListArea").style.display="";
 }
 
+function parseQrDataGeylca(text){
+  try{
+    const j=JSON.parse(text);
+    const id=j.device_id||j.deviceId||(j.dev&&/^(\w+_)?\d+$/i.test(j.dev)?j.dev:null);
+    const sec=j.secret;
+    if(id&&sec&&String(sec).length>=8)return {device_id:String(id).trim(),secret:String(sec).trim()};
+  }catch(e){}
+  return null;
+}
+
+function loadQrImage(dataUrl){
+  return new Promise(function(res,rej){
+    const img=new Image();
+    img.onload=function(){res(img);};
+    img.onerror=rej;
+    img.src=dataUrl;
+  });
+}
+
+function qrCanvasData(img,max){
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(max&&Math.max(w,h)>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  const ctx=c.getContext("2d");ctx.drawImage(img,0,0,w,h);
+  return ctx.getImageData(0,0,w,h);
+}
+
+function tryJsQrDecode(id){
+  let r=null;
+  if(window.jsQR){try{r=jsQR(id.data,id.width,id.height);}catch(e){}}
+  if(!r){
+    const d=new Uint8ClampedArray(id.data.length);
+    for(let i=0;i<id.data.length;i+=4){
+      d[i]=255-id.data[i];d[i+1]=255-id.data[i+1];
+      d[i+2]=255-id.data[i+2];d[i+3]=255;
+    }
+    try{r=jsQR(d,id.width,id.height);}catch(e){}
+  }
+  return r;
+}
+
+async function decodeQrImage(dataUrl){
+  const img=await loadQrImage(dataUrl);
+  for(const s of [1400,900,600]){
+    const id=qrCanvasData(img,s);
+    const code=tryJsQrDecode(id);
+    if(code&&code.data)return code.data;
+  }
+  return null;
+}
+
+async function scanModuleQr(targetId,fileId){
+  try{
+    let dataUrl=null;
+    if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Camera){
+      const photo=await window.Capacitor.Plugins.Camera.getPhoto({resultType:"DataUrl",source:"CAMERA",quality:80});
+      dataUrl=photo.dataUrl;
+    }else{
+      dataUrl=await new Promise(function(res,rej){
+        const f=document.getElementById(fileId);
+        f.onchange=function(){const fr=new FileReader();
+          fr.onload=function(){res(fr.result);};fr.onerror=rej;fr.readAsDataURL(f.files[0]);};
+        f.click();
+      });
+    }
+    toast("Procesando imagen…");
+    const text=await decodeQrImage(dataUrl);
+    if(!text){toast("No se detectó el QR: acerque el teléfono, mejore la iluminación o use la entrada manual");return;}
+    const p=parseQrDataGeylca(text);
+    if(!p){toast("QR leído pero los datos no son válidos (device_id + secret)");return;}
+    const ta=document.getElementById(targetId);
+    if(ta)ta.value=JSON.stringify({device_id:p.device_id,secret:p.secret});
+    toast("QR OK: "+p.device_id);
+  }catch(e){toast("Error de cámara: "+e.message);}
+}
+
 function addModuleWiz(){
   const raw=document.getElementById("moduleAddRaw").value.trim();
   const errEl=document.getElementById("loginErr");
@@ -1916,6 +1995,11 @@ function masterModal(title,fields,onOk,okLabel){
   let html='<div class="modal"><h3>'+escHtml(title)+'</h3>';
   fields.forEach(f=>{
     if(f.type==="hidden"){html+='<input type="hidden" id="mm_'+escHtml(f.id)+'" value="'+escHtml(f.value||"")+'">';return;}
+    if(f.type==="scan"){
+      html+='<button type="button" class="btn" id="mm_scan_'+escHtml(f.id)+'" style="width:100%;margin-bottom:.6rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;border:none">&#128247; Escanear QR de emparejamiento</button>'+
+        '<input type="file" id="mm_file_'+escHtml(f.id)+'" accept="image/*" style="display:none">';
+      return;
+    }
     if(f.label)html+='<label style="font-size:.8rem;margin-bottom:.15rem;display:block">'+escHtml(f.label)+'</label>';
     if(f.type==="textarea"){
       html+='<textarea id="mm_'+escHtml(f.id)+'" rows="'+(f.rows||3)+'" placeholder="'+escHtml(f.placeholder||"")+'" style="width:100%;padding:.5rem;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);margin-bottom:.7rem;font-size:.8rem;resize:vertical">'+escHtml(f.value||"")+'</textarea>';
@@ -1932,6 +2016,12 @@ function masterModal(title,fields,onOk,okLabel){
   mc.className="modal-bg";
   mc.style.display="flex";
   document.getElementById("mm_cancel").onclick=()=>{mc.style.display="none"};
+  fields.forEach(f=>{
+    if(f.type==="scan"){
+      const target="mm_"+(f.target||"raw");
+      document.getElementById("mm_scan_"+f.id).onclick=()=>scanModuleQr(target,"mm_file_"+f.id);
+    }
+  });
   document.getElementById("mm_ok").onclick=()=>{
     const res={};
     fields.forEach(f=>{const el=document.getElementById("mm_"+f.id);if(el)res[f.id]=el.value.trim();});
@@ -2010,7 +2100,7 @@ function masterAct(i,kind){
 }
 function masterAdd(){
   masterModal("Agregar módulo",
-    [{id:"raw",label:'Pegá la data cruda del módulo o el JSON {"device_id":"...","secret":"..."}',type:"textarea",rows:3,placeholder:'{"device_id":"mod_...","secret":"..."}'}],
+    [{id:"scan",type:"scan",target:"raw"},{id:"raw",label:'Pegá la data cruda del módulo o el JSON {"device_id":"...","secret":"..."}',type:"textarea",rows:3,placeholder:'{"device_id":"mod_...","secret":"..."}'}],
     res=>{
       const raw=res.raw||"";
       let did="",sec="";
@@ -2130,6 +2220,7 @@ function initEvents(){
   document.getElementById("btnAddModuleWiz").addEventListener("click",showModuleAdd);
   document.getElementById("btnModuleAddCancel").addEventListener("click",backToModuleList);
   document.getElementById("btnModuleAddSave").addEventListener("click",addModuleWiz);
+  document.getElementById("btnScanQrAdd").addEventListener("click",()=>scanModuleQr("moduleAddRaw","fileQrAdd"));
 
   document.getElementById("btnOpenDoor").addEventListener("click",()=>{
     if(!canDo("open"))return;
