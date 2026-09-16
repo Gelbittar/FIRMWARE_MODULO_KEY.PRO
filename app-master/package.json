@@ -1,17 +1,21 @@
 {
   "name": "geylca-master-app",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "GEYLCA Consola Maestra - operacion multi-modulo (Capacitor)",
   "license": "UNLICENSED",
   "scripts": {
-    "sync": "cap sync"
+    "sync": "cap sync",
+    "prepare-plugins": "node scripts/bundle-plugins.mjs",
+    "postinstall": "node scripts/bundle-plugins.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.0",
-    "@capacitor/camera": "^6.0.0",
-    "@capacitor/core": "^6.2.0"
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/camera": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capgo/capacitor-native-biometric": "^8.6.10",
+    "capacitor-ntfy": "github:coloz/capacitor-ntfy"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.0"
+    "@capacitor/cli": "^8.0.0"
   }
 }

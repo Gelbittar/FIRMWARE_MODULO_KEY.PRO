@@ -37,11 +37,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - name: Prepare web assets
         run: mkdir -p app/web && cp web/index.html app/web/index.html && cp -r web/lib app/web/lib
       - name: Install app deps
@@ -74,11 +74,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - name: Prepare web assets
         run: mkdir -p app-master/web && cp web/master.html app-master/web/index.html && cp -r web/lib app-master/web/lib
       - name: Install app deps

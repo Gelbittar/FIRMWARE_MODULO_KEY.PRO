@@ -553,6 +553,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 }
 .status-tag.active{background:rgba(0,224,168,.12);color:var(--success)}
 .status-tag.suspended{background:rgba(255,77,106,.12);color:var(--danger)}
+.status-tag.blocked{background:rgba(255,77,106,.2);color:var(--danger);border:1px solid var(--danger)}
 .status-tag.online{background:rgba(0,224,168,.12);color:var(--success)}
 .status-tag.offline{background:rgba(255,77,106,.12);color:var(--danger)}
 .status-tag.wait{background:rgba(255,179,71,.12);color:var(--warn)}
@@ -737,6 +738,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
       <input id="masterPassInput" type="password" placeholder="Clave" autocomplete="off">
       <button id="btnSetPass" style="display:none">Crear clave</button>
       <button id="btnUnlock" style="display:none">Desbloquear</button>
+      <button id="btnBioUnlock" style="display:none;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#000">&#128274; Desbloquear con huella</button>
     </div>
 
     <div id="moduleView" style="display:none">
@@ -775,6 +777,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     <button class="active" data-tab="tabDashboard">Dashboard</button>
     <button data-tab="tabSlots">Slots</button>
     <button data-tab="tabConfig" id="navConfig" style="display:none">Config</button>
+    <button data-tab="tabBlocked" id="navBlocked">Bloqueados</button>
     <button data-tab="tabPairing" id="navPairing" style="display:none">Pairing</button>
     <button data-tab="tabLogs">Logs</button>
     <button data-tab="tabConsole">Consola</button>
@@ -872,6 +875,22 @@ tr:hover td{background:rgba(0,212,255,.03)}
       </div>
     </div>
 
+    <!-- Bloqueados -->
+    <div id="tabBlocked" class="tab">
+      <div class="card">
+        <h3>Slots Bloqueados</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Slots bloqueados por anti-clon (llave reescribible), puerta abierta o manualmente. El bloqueo es permanente hasta que un admin lo quite.</p>
+        <div class="btn-row">
+          <button class="btn accent" id="btnRefreshBlocked" disabled>Cargar Bloqueados</button>
+          <span id="blockedInfo" style="font-size:.78rem;opacity:.7;align-self:center"></span>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Slot</th><th>Apartamento</th><th>Motivo</th><th>Fecha</th><th>Acciones</th></tr></thead>
+          <tbody id="blockedTableBody"><tr><td colspan="5" class="empty-msg">Presione "Cargar Bloqueados"</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
     <!-- Config (Master only) -->
     <div id="tabConfig" class="tab">
       <div class="card">
@@ -910,6 +929,54 @@ tr:hover td{background:rgba(0,212,255,.03)}
         <div class="btn-row">
           <button class="btn danger" id="btnResetInstaller">Reset PIN instalador a 654321</button>
           <button class="btn danger" id="btnResetAdminKey">Reset PIN admin a 123456</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Anti-clon de Llaves</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Al activar, el módulo presenta cada llave y escribe <b>0000</b> en su ROM: si la llave es reescribible (clon RW1990) queda neutralizada y su slot se bloquea (motivo <i>reescribible</i>). Las llaves de solo lectura (SÓVICA originales) no se alteran. <b>¡CUIDADO!</b> Si una llave legítima resultara reescribible, también quedaría neutralizada. Por defecto está desactivado.</p>
+        <div class="form-row">
+          <label class="console-chk" style="align-self:center"><input type="checkbox" id="rewriteProbeCheck"> Habilitar detección de llaves reescribibles</label>
+          <button class="btn accent" id="btnSetRewriteProbe" disabled>Guardar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Filtro de Familia (1-Wire)</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Por defecto se aceptan todas las familias (multi-familia). Si se define un solo código de familia (0-255), solo abren llaves con esa familia. Las SÓVICA usan familia <b>0x81</b>. 0 = todos.</p>
+        <div class="form-row">
+          <div class="field"><label>Familia (0 = todas)</label><input id="famFilter" type="number" min="0" max="255" value="0"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetFamFilter" disabled>Guardar</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Sensor de Puerta + Buzzer</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Sensor en GPIO 32 y buzzer en GPIO 33. Si la puerta queda abierta más del tiempo configurado, el slot se bloquea (motivo <i>puerta_abierta</i>) y se notifica. El buzzer suena en los últimos N segundos antes de vencer.</p>
+        <div class="form-row">
+          <label class="console-chk" style="align-self:center"><input type="checkbox" id="doorEnabledCheck"> Habilitar control de puerta</label>
+          <label class="console-chk" style="align-self:center"><input type="checkbox" id="buzzerCheck" checked> Buzzer de pre-alarma</label>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Tiempo máx. abierta (s)</label><input id="doorTimeout" type="number" min="5" max="600" value="60"></div>
+          <div class="field"><label>Pre-alarma buzzer (s)</label><input id="doorPreBuzzer" type="number" min="1" max="120" value="10"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Lógica del sensor</label>
+            <select id="doorNCSelect"><option value="1">NC (cerrada = contacto cerrado)</option><option value="0">NO (abierta = contacto cerrado)</option></select>
+          </div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetDoorConfig" disabled>Guardar</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Notificaciones Push (ntfy.sh)</h3>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">El módulo hace POST a <code>https://ntfy.sh/&lt;topic&gt;</code> cuando bloquea un slot. En esta app, suscribirse al mismo topic permite recibir el aviso aunque la app esté cerrada (requiere el plugin nativo en el APK).</p>
+        <div class="form-row">
+          <div class="field"><label>URL (base)</label><input id="ntfyUrl" type="text" value="https://ntfy.sh"></div>
+          <div class="field"><label>Topic</label><input id="ntfyTopic" type="text" placeholder="mi-tema-geylca"></div>
+          <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn accent" id="btnSetNtfy" disabled>Guardar</button></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn small" id="btnTestNtfy" disabled>Enviar prueba</button>
+          <button class="btn small" id="btnSyncNtfy" disabled>Suscribir esta app al topic</button>
+          <span id="ntfyStatus" style="font-size:.75rem;opacity:.7;align-self:center"></span>
         </div>
       </div>
       <div class="card">
@@ -1036,7 +1103,7 @@ let moduleStateKnown = false;
 let lastModuleSeen = 0;
 let announcedOnline = false;
 
-const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys","reset_admin_key","reset_installer_key"],admin:["get_free_slots","get_slots","get_slot_info","suspend_slot"],installer:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","reset_wifi","set_role_key","get_role_keys","reset_admin_key","reset_installer_key"]};
+const roles = {master:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","set_security_mode","reset_wifi","factory_reset","wipe_slots","set_role_key","get_role_keys","reset_admin_key","reset_installer_key","set_family_filter","set_rewrite_probe","set_door_config","set_ntfy","block_slot","unblock_slot"],admin:["get_free_slots","get_slots","get_slot_info","suspend_slot","block_slot","unblock_slot"],installer:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","reset_wifi","set_role_key","get_role_keys","reset_admin_key","reset_installer_key","set_door_config"]};
 
 function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
 
@@ -1250,6 +1317,13 @@ function setWaiting(waiting){
   document.getElementById("btnResetInstaller").disabled=waiting||!canDo("reset_installer_key");
   document.getElementById("btnResetAdminKey").disabled=waiting||!canDo("reset_admin_key");
   document.getElementById("btnScanProgs").disabled=waiting;
+  document.getElementById("btnSetRewriteProbe").disabled=waiting||!canDo("set_rewrite_probe");
+  document.getElementById("btnSetFamFilter").disabled=waiting||!canDo("set_family_filter");
+  document.getElementById("btnSetDoorConfig").disabled=waiting||!canDo("set_door_config");
+  document.getElementById("btnSetNtfy").disabled=waiting||!canDo("set_ntfy");
+  document.getElementById("btnTestNtfy").disabled=waiting;
+  document.getElementById("btnSyncNtfy").disabled=waiting;
+  document.getElementById("btnRefreshBlocked").disabled=waiting||!canDo("get_slots");
   if(waiting){
     document.getElementById("btnOpenDoor").innerHTML='<span class="spinner"></span>Espere...';
   }else{
@@ -1402,11 +1476,21 @@ function renderSlots(){
     tb.innerHTML=page.map(k=>{
       const d=slotData[k];
       const suspended=d.status==="suspended";
-      const togDis=canDo("suspend_slot")?"":" disabled";
+      const blocked=d.blk&&d.blk.length>0;
       const delDis=canDo("clear_slot")?"":" disabled";
       const aptDis=canDo("set_apto")?"":" disabled";
-      const togLabel=suspended?"Activar":"Suspender";
-      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\"><span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span></td><td data-label=\"Acciones\"><button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+togLabel+"</button> <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+      const unDis=canDo("unblock_slot")?"":" disabled";
+      const togDis=canDo("suspend_slot")?"":" disabled";
+      let badgeHtml;
+      if(blocked){
+        badgeHtml="<span class=\"status-tag blocked\" title=\""+escHtml(d.blk)+" — "+escHtml(formatDateTime(d.blkts))+"\">BLOQUEADA</span><div style=\"font-size:.68rem;opacity:.7;margin-top:.15rem\">"+escHtml(reasonLabel(d.blk))+" · "+escHtml(formatDateTime(d.blkts))+"</div>";
+      }else{
+        badgeHtml="<span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span>";
+      }
+      const actBtn=blocked
+        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
+        : "<button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
+      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
     }).join("");
   }
   document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
@@ -1433,6 +1517,15 @@ function processEvent(msg){
   if(d.security_mode!==undefined){securityMode=d.security_mode;document.getElementById("statSecMode").textContent=d.security_mode===3?"SÓVICA (3 bytes)":d.security_mode+" bytes";document.getElementById("secModeSelect").value=d.security_mode}
   if(d.relay_time!==undefined)document.getElementById("relayTime").value=d.relay_time;
 
+  if(d.family_filter!==undefined)document.getElementById("famFilter").value=d.family_filter;
+  if(d.rewrite_probe!==undefined)document.getElementById("rewriteProbeCheck").checked=!!d.rewrite_probe;
+  if(d.door_enabled!==undefined)document.getElementById("doorEnabledCheck").checked=!!d.door_enabled;
+  if(d.door_timeout!==undefined)document.getElementById("doorTimeout").value=d.door_timeout;
+  if(d.door_nc!==undefined)document.getElementById("doorNCSelect").value=d.door_nc?"1":"0";
+  if(d.buzzer_enabled!==undefined)document.getElementById("buzzerCheck").checked=!!d.buzzer_enabled;
+  if(d.buzzer_pre!==undefined)document.getElementById("doorPreBuzzer").value=d.buzzer_pre;
+  if(d.ntfy_topic!==undefined){document.getElementById("ntfyTopic").value=d.ntfy_topic||"";}
+
   if(actionField==="Key learned"){
     learnKeyActive=false;
     pendingScanKey="";
@@ -1449,7 +1542,7 @@ function processEvent(msg){
   }
 
   if(actionField==="slot_info"&&slotNum!==undefined){
-    slotData[slotNum]={key:d.key||"--",aparto:d.apto||"--",status:d.status||"active"};
+    slotData[slotNum]={key:d.key||"--",aparto:d.apto||"--",status:d.status||"active",blk:d.blk||"",blkts:d.blkts||0};
     renderSlots();
     toast("Slot #"+slotNum+" cargado","info");
     setWaiting(false);
@@ -1512,13 +1605,44 @@ function processEvent(msg){
     return;
   }
   if(d.status==="SLOTS_BATCH"&&Array.isArray(d.slots)){
-    d.slots.forEach(s=>{if(s&&s.slot)slotData[s.slot]={key:s.key||"--",aparto:s.apto||"--",status:s.sus?"suspended":"active"}});
+    d.slots.forEach(s=>{if(s&&s.slot)slotData[s.slot]={key:s.key||"--",aparto:s.apto||"--",status:s.sus?"suspended":"active",blk:s.blk||"",blkts:s.blkts||0}});
     return;
   }
   if(d.status==="SLOTS_DONE"){
     renderSlots();
+    renderBlocked();
     const n=Object.keys(slotData).length;
     toast("Descarga completa: "+(n)+" casillas registradas"+(n===0?" (no hay llaves grabadas)":" "),"success");
+    setWaiting(false);
+    return;
+  }
+
+  if(status==="BLOCKED"&&slotNum!==undefined){
+    if(slotData[slotNum]){slotData[slotNum].status="suspended";slotData[slotNum].blk=d.reason||"manual";slotData[slotNum].blkts=d.timestamp||Math.floor(Date.now()/1000);}
+    renderSlots();
+    renderBlocked();
+    toast("Slot #"+slotNum+" bloqueado ("+(d.reason||"manual")+")","warn");
+    consoleAdd("rx",topic("events"),"BLOCKED slot "+slotNum+" reason "+d.reason);
+    setWaiting(false);
+    return;
+  }
+  if(d.message==="Slot suspension toggled"&&slotNum!==undefined){
+    if(slotData[slotNum]){
+      const nowSusp=!!d.suspended;
+      slotData[slotNum].status=nowSusp?"suspended":"active";
+      slotData[slotNum].blk=nowSusp?"manual":"";
+      slotData[slotNum].blkts=nowSusp?Math.floor(Date.now()/1000):0;
+    }
+    renderSlots();
+    renderBlocked();
+    setWaiting(false);
+    return;
+  }
+  if(d.message==="Slot unblocked"&&slotNum!==undefined){
+    if(slotData[slotNum]){slotData[slotNum].status="active";slotData[slotNum].blk="";slotData[slotNum].blkts=0;}
+    renderSlots();
+    renderBlocked();
+    toast("Slot #"+slotNum+" desbloqueado","success");
     setWaiting(false);
     return;
   }
@@ -1529,7 +1653,8 @@ function processEvent(msg){
     return;
   }
   if(status==="DENIED"){
-    toast("Acceso denegado: "+message,"error");
+    const reason=d.reason?(" ("+reasonLabel(d.reason)+")"):"";
+    toast("Acceso denegado"+reason,"error");
     setWaiting(false);
     return;
   }
@@ -1694,11 +1819,13 @@ function initMasterFlow(){
     setBtn.style.display="none";
     unlBtn.style.display="";
     setLoginView("pass");
+    scheduleBioUnlockCheck();
   }else{
     bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. La clave no se sube a ningún servidor.";
     setBtn.style.display="";
     unlBtn.style.display="none";
     setLoginView("pass");
+    document.getElementById("btnBioUnlock").style.display="none";
   }
 }
 
@@ -1708,6 +1835,7 @@ function createPass(){
   if(!v||v.length<4){errEl.textContent="La clave debe tener al menos 4 caracteres.";errEl.style.display="block";return;}
   const salt=randKey(24);
   localStorage.setItem("geylca_masterpass",JSON.stringify({salt:salt,hash:passHash(salt,v)}));
+  saveBioSecret(v);
   errEl.style.display="none";
   document.getElementById("masterPassInput").value="";
   toast("Clave creada. Bienvenido a GEYLCA Master.","success");
@@ -1725,6 +1853,7 @@ function unlockApp(){
     return;
   }
   errEl.style.display="none";
+  saveBioSecret(v);
   document.getElementById("masterPassInput").value="";
   toast("Desbloqueado.","success");
   showModuleSelect();
@@ -1982,6 +2111,188 @@ window.GEYLCA.deleteSlot=function(slot){
     setWaiting(true);
   },"Eliminar");
 };
+window.GEYLCA.unblockSlot=function(slot){
+  if(!canDo("unblock_slot"))return;
+  showModal("Desbloquear Slot","¿Desbloquear el slot #"+slot+"? El admin quita la suspensión permanente y la llave vuelve a operar.",()=>{
+    makeMsg("unblock_slot",{slot:slot}).then(m=>publish(m));
+    setWaiting(true);
+  },"Desbloquear");
+};
+
+// ===== Slots bloqueados =====
+function reasonLabel(r){
+  if(r==="reescribible")return "Llave reescribible (clon)";
+  if(r==="puerta_abierta")return "Puerta abierta (timeout)";
+  if(r==="manual")return "Manual (admin)";
+  if(r==="family")return "Familia no permitida";
+  return r||"";
+}
+function formatDateTime(unix){
+  if(!unix)return"--";
+  const d=new Date(unix*1000);
+  return d.toLocaleString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+}
+function blockedSlots(){
+  return Object.keys(slotData).map(Number).filter(k=>slotData[k]&&slotData[k].blk).sort((a,b)=>a-b);
+}
+function renderBlocked(){
+  const tb=document.getElementById("blockedTableBody");
+  const info=document.getElementById("blockedInfo");
+  const bl=blockedSlots();
+  if(info)info.textContent=bl.length?bl.length+" bloqueado(s)": "";
+  if(!bl.length){if(tb)tb.innerHTML='<tr><td colspan="5" class="empty-msg">No hay slots bloqueados</td></tr>';return;}
+  const unDis=canDo("unblock_slot")?"":" disabled";
+  if(tb)tb.innerHTML=bl.map(k=>{
+    const d=slotData[k];
+    return "<tr><td data-label=\"Slot\"><b>"+k+"</b></td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Motivo\">"+escHtml(reasonLabel(d.blk))+"</td><td data-label=\"Fecha\">"+escHtml(formatDateTime(d.blkts))+"</td><td data-label=\"Acciones\"><button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\""+unDis+">Desbloquear</button></td></tr>";
+  }).join("");
+}
+function refreshBlocked(){
+  if(!canDo("get_slots")){toast("Sin permiso para listar slots","error");return;}
+  makeMsg("get_slots").then(m=>publish(m));
+  setWaiting(true);
+  toast("Solicitando slots para detectar bloqueados...","info");
+}
+
+// ===== Config anti-clon / puerta / ntfy =====
+function saveRewriteProbe(){
+  if(!canDo("set_rewrite_probe"))return;
+  makeMsg("set_rewrite_probe",{enabled:document.getElementById("rewriteProbeCheck").checked}).then(m=>publish(m));
+  toast("Guardando detección de reescribibles...","info");
+}
+function saveFamFilter(){
+  if(!canDo("set_family_filter"))return;
+  const fam=parseInt(document.getElementById("famFilter").value,10)||0;
+  makeMsg("set_family_filter",{family:fam}).then(m=>publish(m));
+  toast("Guardando filtro de familia ("+fam+")...","info");
+}
+function saveDoorConfig(){
+  if(!canDo("set_door_config"))return;
+  const to=parseInt(document.getElementById("doorTimeout").value,10)||60;
+  const pre=parseInt(document.getElementById("doorPreBuzzer").value,10)||10;
+  makeMsg("set_door_config",{
+    enabled:document.getElementById("doorEnabledCheck").checked,
+    timeout:to,
+    nc:document.getElementById("doorNCSelect").value==="1",
+    buzzer:document.getElementById("buzzerCheck").checked,
+    buzzer_pre:pre
+  }).then(m=>publish(m));
+  toast("Guardando configuración de puerta...","info");
+}
+function ntfyConfig(){
+  return {url:(document.getElementById("ntfyUrl").value||"https://ntfy.sh").trim(),topic:document.getElementById("ntfyTopic").value.trim()};
+}
+function saveNtfy(){
+  if(!canDo("set_ntfy"))return;
+  const c=ntfyConfig();
+  if(!c.topic){toast("Indique un topic","error");return;}
+  makeMsg("set_ntfy",{url:c.url,topic:c.topic}).then(m=>publish(m));
+  toast("Guardando configuración ntfy en el módulo...","info");
+}
+function testNtfy(){
+  const c=ntfyConfig();
+  if(!c.topic){toast("Indique un topic","error");return;}
+  const body="Prueba GEYLCA desde el módulo "+deviceId;
+  fetch((c.url||"https://ntfy.sh").replace(/\/+$/,"")+"/"+c.topic,{method:"POST",body:new Blob([body],{type:"text/plain"})})
+    .then(r=>toast(r.ok?"Prueba enviada a ntfy":"Error HTTP "+r.status,r.ok?"success":"error"))
+    .catch(()=>toast("No se pudo enviar la prueba","error"));
+}
+
+// ===== Plugins nativos (Capacitor) =====
+let capCorePromise=null;
+function loadLib(src){
+  return new Promise(res=>{
+    const s=document.createElement("script");
+    s.src=src;
+    s.onload=()=>res(true);
+    s.onerror=()=>res(false);
+    document.head.appendChild(s);
+  });
+}
+function loadCapCore(){
+  if(!capCorePromise){
+    capCorePromise=window.capacitorExports?Promise.resolve(true):loadLib("lib/capacitor-core.js");
+  }
+  return capCorePromise;
+}
+function capCore(){
+  const ex=window.capacitorExports||{};
+  return ex.Capacitor||window.Capacitor||null;
+}
+function isNativeCap(){
+  const C=capCore();
+  return !!(C&&C.isNativePlatform&&C.isNativePlatform());
+}
+function loadNativeLib(src){
+  return loadCapCore().then(ok=>ok?loadLib(src):false).then(ok=>{
+    if(ok){
+      const ex=window.capacitorExports||{};
+      if(!ex.Capacitor&&window.Capacitor)window.capacitorExports=window.Capacitor;
+    }
+    return ok;
+  });
+}
+function bioAvail(){
+  return !!(window.capacitorCapacitorBiometric&&window.capacitorCapacitorBiometric.NativeBiometric);
+}
+function ntfyAvail(){
+  const ntf=(window.capacitorNtfy||window.CapacitorNtfy||{});
+  return !!(ntf.Ntfy||(window.capacitorNtfy&&window.capacitorNtfy.default));
+}
+function saveBioSecret(pass){
+  if(!isNativeCap()||!bioAvail()||!pass)return Promise.resolve();
+  return window.capacitorCapacitorBiometric.NativeBiometric.setCredentials({username:"geylca_master",password:pass}).catch(()=>null);
+}
+function scheduleBioUnlockCheck(){
+  const btn=document.getElementById("btnBioUnlock");
+  if(!btn)return;
+  if(isNativeCap()){
+    loadNativeLib("lib/capacitor-native-biometric.js").then(()=>{
+      if(!bioAvail()){btn.style.display="none";return;}
+      const nb=window.capacitorCapacitorBiometric.NativeBiometric;
+      nb.isAvailable().then(r=>{btn.style.display=r.isAvailable?"":"none"}).catch(()=>{btn.style.display="none"});
+    });
+  }else{
+    btn.style.display="none";
+  }
+}
+function unlockWithBio(){
+  if(!bioAvail())return;
+  const nb=window.capacitorCapacitorBiometric.NativeBiometric;
+  nb.verifyIdentity({reasonTitle:"Desbloquear GEYLCA Master",reasonSubtitle:"Confirme su identidad para continuar",reasonCancel:"Cancelar"})
+    .then(()=>nb.getCredentials())
+    .then(r=>{
+      const sec=r.password;
+      const info=getPassInfo();
+      if(sec&&info&&info.salt&&info.hash&&passHash(info.salt,sec)===info.hash){
+        document.getElementById("masterPassInput").value="";
+        toast("Desbloqueado por huella.","success");
+        showModuleSelect();
+      }else{
+        document.getElementById("loginErr").textContent="La huella no corresponde a esta app.";
+        document.getElementById("loginErr").style.display="block";
+      }
+    })
+    .catch(()=>{ /* usuario canceló */ });
+}
+function syncNtfyNative(){
+  const c=ntfyConfig();
+  const stEl=document.getElementById("ntfyStatus");
+  if(!c.topic){toast("Indique un topic","error");return;}
+  if(!isNativeCap()){
+    if(stEl)stEl.textContent="La suscripción en segundo plano requiere el APK nativo.";
+    toast("El plugin de notificaciones solo corre en el APK nativo","warn");
+    return;
+  }
+  loadNativeLib("lib/capacitor-ntfy.js").then(()=>{
+    const ntf=((window.capacitorNtfy||{}).Ntfy)||((window.CapacitorNtfy||{}).Ntfy);
+    if(!ntf){if(stEl)stEl.textContent="Plugin capacitor-ntfy no encontrado.";return;}
+    Promise.resolve(ntf.requestNotificationPermission?ntf.requestNotificationPermission():null)
+      .then(()=>ntf.start({baseUrl:c.url,topics:[c.topic],autoStartOnBoot:true,showNotifications:true,historyLimit:50,foregroundTitle:"GEYLCA Master",foregroundText:"Escuchando avisos ntfy"}))
+      .then(()=>{if(stEl)stEl.textContent="App suscrita a "+c.topic+" (en segundo plano).";toast("Notificaciones activadas","success")})
+      .catch(e=>{if(stEl)stEl.textContent="Error: "+(e&&e.message||e);toast("No se pudo suscribir","error")});
+  });
+}
 
 // ===== Consola Maestra (multi-módulo) =====
 function loadMasterRegistry(){
@@ -2364,6 +2675,15 @@ function initEvents(){
     makeMsg("get_role_keys").then(m=>publish(m));
     toast("Solicitando claves...","info");
   });
+
+  document.getElementById("btnSetRewriteProbe").addEventListener("click",saveRewriteProbe);
+  document.getElementById("btnSetFamFilter").addEventListener("click",saveFamFilter);
+  document.getElementById("btnSetDoorConfig").addEventListener("click",saveDoorConfig);
+  document.getElementById("btnSetNtfy").addEventListener("click",saveNtfy);
+  document.getElementById("btnTestNtfy").addEventListener("click",testNtfy);
+  document.getElementById("btnSyncNtfy").addEventListener("click",syncNtfyNative);
+  document.getElementById("btnRefreshBlocked").addEventListener("click",refreshBlocked);
+  document.getElementById("btnBioUnlock").addEventListener("click",unlockWithBio);
 
   let wifiClicks=0;
   let wifiClickTimer=null;

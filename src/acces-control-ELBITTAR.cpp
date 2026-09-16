@@ -29,18 +29,21 @@
 #define PIN_RELAY    27
 #define PIN_LED      13
 #define PIN_BTN_PROG 4
+#define PIN_DOOR     32
+#define PIN_BUZZER   33
 #define EEPROM_ADDR  0x50
 
 #define MAX_SLOTS    4000
 int slotSize = 8;
 
-#define FIRMWARE_VERSION "2.4.0"
+#define FIRMWARE_VERSION "2.5.0"
 
 #define PIN_LEN 6
 #define DEFAULT_ADMIN_PIN "123456"
 #define DEFAULT_INSTALLER_PIN "654321"
 
 bool isPin6(String k);
+void writeLog(uint8_t actionType, uint16_t slotNum, uint8_t statusVal);
 
 #define MAX_LOG_ENTRIES 100
 
@@ -128,6 +131,16 @@ int relayTimeDefault = 1200;
 #define SECMODE_SOVICA 3
 int securityMode = SECMODE_SOVICA;
 
+int famFilter = 0;
+bool rewriteProbe = false;
+bool doorEnabled = false;
+unsigned long doorTimeoutMs = 60000;
+bool doorClosedIsLow = true;
+bool buzzerEnabled = true;
+unsigned long buzzerPreMs = 10000;
+String ntfyUrl = "https://ntfy.sh";
+String ntfyTopic = "";
+
 bool learningMode = false;
 unsigned long learningStartedAt = 0;
 String scannedKeyHex = "";
@@ -139,6 +152,13 @@ bool slotsWiping = false;
 unsigned int wipeBytesPos = 0;
 unsigned long ultimoProcesoLlave = 0;
 String targetApto = "";
+
+bool doorMonitoring = false;
+unsigned long doorOpenSince = 0;
+unsigned long doorClosedSince = 0;
+int doorMonitorSlot = 0;
+unsigned long lastBuzzerToggle = 0;
+bool buzzerState = false;
 
 #define SLOTS_BITMAP_LEN ((MAX_SLOTS + 7) / 8)
 byte occupiedBitmap[SLOTS_BITMAP_LEN];
@@ -268,6 +288,135 @@ void readEEPROM(unsigned int eeaddress, byte *buffer, int length) {
         done += n;
         delay(2);
     }
+}
+
+// ---------------------------------------------------------------
+// Anti-clon de llaves / sensor de puerta / buzzer / ntfy
+// ---------------------------------------------------------------
+
+void cargarConfigAntiClon() {
+    preferences.begin("geylca_apt", true);
+    famFilter = preferences.getInt("famFilter", 0);
+    rewriteProbe = preferences.getBool("rewriteProbe", false);
+    doorEnabled = preferences.getBool("doorEnabled", false);
+    doorTimeoutMs = (unsigned long)preferences.getLong("doorTimeout", 60000);
+    if (doorTimeoutMs <= 0) doorTimeoutMs = 60000;
+    doorClosedIsLow = preferences.getBool("doorClosedIsLow", true);
+    buzzerEnabled = preferences.getBool("buzzerEnabled", true);
+    buzzerPreMs = (unsigned long)preferences.getLong("buzzerPre", 10000);
+    if (buzzerPreMs > doorTimeoutMs) buzzerPreMs = doorTimeoutMs;
+    ntfyUrl = preferences.getString("ntfyUrl", "https://ntfy.sh");
+    ntfyTopic = preferences.getString("ntfyTopic", "");
+    preferences.end();
+}
+
+// RW1990: bit-bang de escritura (protocolo del iButtonProgrammer de ArminJo,
+// probado con RW1990). Se apoya en el pull-up externo de la linea 1-Wire.
+void rw1990WriteByte(uint8_t data) {
+    for (uint8_t bit = 0; bit < 8; bit++) {
+        if (data & 1) {
+            pinMode(PIN_IBUTTON, OUTPUT);
+            digitalWrite(PIN_IBUTTON, LOW);
+            delayMicroseconds(60);
+            pinMode(PIN_IBUTTON, INPUT);
+            delay(10);
+        } else {
+            pinMode(PIN_IBUTTON, OUTPUT);
+            digitalWrite(PIN_IBUTTON, LOW);
+            pinMode(PIN_IBUTTON, INPUT);
+            delay(10);
+        }
+        data >>= 1;
+    }
+}
+
+// Escribe 0000 en la ROM de la llave presentada. Si despues de escribir
+// la ROM queda en 0x00... es reescribible (RW1990) y quedo neutralizada.
+// Si sigue igual es de solo lectura (genuina DS1990A / SOVICA).
+bool probeLlaveReescribible() {
+    if (!ibutton.reset()) return false;
+    ibutton.write(0x33);
+    for (uint8_t i = 0; i < 8; i++) ibutton.read();
+    if (!ibutton.reset()) return false;
+    ibutton.write(0xD5);
+    for (uint8_t i = 0; i < 8; i++) rw1990WriteByte(0x00);
+    ibutton.reset();
+    if (!ibutton.reset()) return false;
+    ibutton.write(0x33);
+    byte after[8];
+    for (uint8_t i = 0; i < 8; i++) after[i] = ibutton.read();
+    bool allZero = true;
+    for (uint8_t i = 0; i < 8; i++) if (after[i] != 0x00) allZero = false;
+    return allZero;
+}
+
+bool puertaAbierta() {
+    int nivel = digitalRead(PIN_DOOR);
+    if (doorClosedIsLow) return nivel != LOW;
+    return nivel == LOW;
+}
+
+void setBuzzer(bool on) {
+    if (on) ledcWriteTone(PIN_BUZZER, 2500);
+    else ledcWriteTone(PIN_BUZZER, 0);
+    buzzerState = on;
+}
+
+void notificarNtfy(const String &msg) {
+    if (ntfyTopic.length() == 0) return;
+    HTTPClient http;
+    http.setTimeout(8000);
+    String url = ntfyUrl;
+    if (!url.endsWith("/")) url += "/";
+    url += ntfyTopic;
+    if (url.startsWith("https")) {
+        WiFiClientSecure sClient;
+        sClient.setInsecure();
+        http.begin(sClient, url);
+    } else {
+        http.begin(url);
+    }
+    http.addHeader("Content-Type", "text/plain");
+    int code = http.POST(msg);
+    if (code < 200 || code >= 300) {
+        Serial.print("[Ntfy] Error HTTP ");
+        Serial.println(code);
+    } else {
+        Serial.println("[Ntfy] Notificacion enviada");
+    }
+    http.end();
+}
+
+void bloquearSlot(int slot, const String &reason) {
+    preferences.begin("geylca_apt", false);
+    preferences.putBool(("sus_" + String(slot)).c_str(), true);
+    preferences.putString(("blk_" + String(slot)).c_str(), reason);
+    preferences.putLong(("blkts_" + String(slot)).c_str(), (long)time(nullptr));
+    preferences.end();
+    writeLog(4, slot, 2);
+    if (mqttClient.connected()) {
+        String msg = "{\"status\":\"BLOCKED\",\"slot\":" + String(slot) + ",\"reason\":\"" + reason + "\"}";
+        mqttClient.publish(getTopic("events").c_str(), msg.c_str());
+    }
+    Serial.println("[BLOCK] Slot " + String(slot) + " bloqueado: " + reason);
+    notificarNtfy("Slot " + String(slot) + " bloqueado (" + reason + ")");
+}
+
+void desbloquearSlot(int slot) {
+    preferences.begin("geylca_apt", false);
+    preferences.remove(("sus_" + String(slot)).c_str());
+    preferences.remove(("blk_" + String(slot)).c_str());
+    preferences.remove(("blkts_" + String(slot)).c_str());
+    preferences.end();
+}
+
+void armarMonitoreoPuerta(int slotMonitoreado) {
+    doorMonitoring = true;
+    doorOpenSince = millis();
+    doorClosedSince = 0;
+    doorMonitorSlot = slotMonitoreado;
+    lastBuzzerToggle = millis();
+    setBuzzer(false);
 }
 
 // ---------------------------------------------------------------
@@ -540,9 +689,11 @@ bool publicarLoteSlots() {
         keyHex.toUpperCase();
         String apto = preferences.getString(("s_" + String(slot)).c_str(), "");
         bool sus = preferences.getBool(("sus_" + String(slot)).c_str(), false);
+        String blk = preferences.getString(("blk_" + String(slot)).c_str(), "");
+        long blkts = preferences.getLong(("blkts_" + String(slot)).c_str(), 0);
         if (!first) out += ",";
         first = false;
-        out += "{\"slot\":" + String(slot) + ",\"key\":\"" + keyHex + "\",\"apto\":\"" + apto + "\",\"sus\":" + (sus ? "true" : "false") + "}";
+        out += "{\"slot\":" + String(slot) + ",\"key\":\"" + keyHex + "\",\"apto\":\"" + apto + "\",\"sus\":" + (sus ? "true" : "false") + ",\"blk\":\"" + blk + "\",\"blkts\":" + String(blkts) + "}";
     }
     preferences.end();
     out += "]}";
@@ -703,6 +854,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         digitalWrite(PIN_LED, HIGH);
         relayActive = true;
         relayOffTime = millis() + relayTimeDefault;
+        if (doorEnabled) armarMonitoreoPuerta(0);
         writeLog(1, 0, 1);
         mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"GRANTED\",\"slot\":0,\"apto\":\"Apertura Remota App\"}");
         return;
@@ -745,7 +897,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
                          ",\"relay_time\":" + String(relayTimeDefault / 1000) +
                          ",\"max_slots\":" + String(MAX_SLOTS) +
                          ",\"timestamp\":" + String((uint32_t)now) +
-                         ",\"firmware\":\"" + String(FIRMWARE_VERSION) + "\"}";
+                         ",\"firmware\":\"" + String(FIRMWARE_VERSION) + "\""
+                         ",\"family_filter\":" + String(famFilter) +
+                         ",\"rewrite_probe\":" + String(rewriteProbe ? "true" : "false") +
+                         ",\"door_enabled\":" + String(doorEnabled ? "true" : "false") +
+                         ",\"door_timeout\":" + String(doorTimeoutMs / 1000) +
+                         ",\"door_nc\":" + String(doorClosedIsLow ? "true" : "false") +
+                         ",\"buzzer_enabled\":" + String(buzzerEnabled ? "true" : "false") +
+                         ",\"buzzer_pre\":" + String(buzzerPreMs / 1000) +
+                         ",\"ntfy_topic\":\"" + ntfyTopic + "\"}";
         mqttClient.publish(getTopic("events").c_str(), respJSON.c_str());
         return;
     }
@@ -956,11 +1116,121 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             String susKey = "sus_" + String(slot);
             bool currentStatus = preferences.getBool(susKey.c_str(), false);
             preferences.putBool(susKey.c_str(), !currentStatus);
+            if (!currentStatus) {
+                preferences.putString(("blk_" + String(slot)).c_str(), "manual");
+                preferences.putLong(("blkts_" + String(slot)).c_str(), (long)time(nullptr));
+            } else {
+                preferences.remove(("blk_" + String(slot)).c_str());
+                preferences.remove(("blkts_" + String(slot)).c_str());
+            }
             preferences.end();
             writeLog(4, slot, currentStatus ? 1 : 2);
             String suspendMsg = "{\"message\":\"Slot suspension toggled\",\"slot\":" + String(slot) + ",\"suspended\":" + String(!currentStatus ? "true" : "false") + "}";
             mqttClient.publish(getTopic("events").c_str(), suspendMsg.c_str());
         }
+    }
+    else if (action == "block_slot") {
+        if (!hasRolePermission("admin", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        int slot = doc["slot"];
+        if (slot > 0 && slot <= MAX_SLOTS) {
+            bloquearSlot(slot, "manual");
+            mqttClient.publish(getTopic("status_resp").c_str(), "{\"status\":\"OK\",\"message\":\"Slot blocked\"}");
+        }
+    }
+    else if (action == "unblock_slot") {
+        if (!hasRolePermission("admin", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        int slot = doc["slot"];
+        if (slot > 0 && slot <= MAX_SLOTS) {
+            desbloquearSlot(slot);
+            mqttClient.publish(getTopic("status_resp").c_str(), "{\"status\":\"OK\",\"message\":\"Slot unblocked\"}");
+            Serial.println("[BLOCK] Slot " + String(slot) + " desbloqueado por admin");
+        }
+    }
+    else if (action == "set_family_filter") {
+        if (!hasRolePermission("master", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        int fam = doc["family"] | 0;
+        if (fam < 0 || fam > 255) fam = 0;
+        famFilter = fam;
+        preferences.begin("geylca_apt", false);
+        preferences.putInt("famFilter", famFilter);
+        preferences.end();
+        String famMsg = "{\"message\":\"Family filter updated\",\"family\":" + String(famFilter) + "}";
+        mqttClient.publish(getTopic("events").c_str(), famMsg.c_str());
+    }
+    else if (action == "set_rewrite_probe") {
+        if (!hasRolePermission("master", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        bool enable = doc["enabled"] | false;
+        rewriteProbe = enable;
+        preferences.begin("geylca_apt", false);
+        preferences.putBool("rewriteProbe", rewriteProbe);
+        preferences.end();
+        String probeMsg = "{\"message\":\"Rewrite probe updated\",\"enabled\":" + String(rewriteProbe ? "true" : "false") + "}";
+        mqttClient.publish(getTopic("events").c_str(), probeMsg.c_str());
+    }
+    else if (action == "set_door_config") {
+        if (!hasRolePermission("installer", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        bool doorEn = doc["enabled"] | false;
+        int doorToS = doc["timeout"] | 60;
+        bool doorNc = doc["nc"] | true;
+        bool buzEn = doc["buzzer"] | true;
+        int buzPreS = doc["buzzer_pre"] | 10;
+        if (doorToS <= 0) doorToS = 60;
+        if (buzPreS <= 0) buzPreS = 10;
+        doorEnabled = doorEn;
+        doorTimeoutMs = (unsigned long)doorToS * 1000UL;
+        doorClosedIsLow = doorNc;
+        buzzerEnabled = buzEn;
+        buzzerPreMs = (unsigned long)buzPreS * 1000UL;
+        if (buzzerPreMs > doorTimeoutMs) buzzerPreMs = doorTimeoutMs;
+        preferences.begin("geylca_apt", false);
+        preferences.putBool("doorEnabled", doorEnabled);
+        preferences.putLong("doorTimeout", (long)doorTimeoutMs);
+        preferences.putBool("doorClosedIsLow", doorClosedIsLow);
+        preferences.putBool("buzzerEnabled", buzzerEnabled);
+        preferences.putLong("buzzerPre", (long)buzzerPreMs);
+        preferences.end();
+        String doorMsg = "{\"message\":\"Door config updated\",\"enabled\":" + String(doorEnabled ? "true" : "false") +
+                        ",\"timeout\":" + String(doorToS) +
+                        ",\"nc\":" + String(doorClosedIsLow ? "true" : "false") +
+                        ",\"buzzer\":" + String(buzzerEnabled ? "true" : "false") +
+                        ",\"buzzer_pre\":" + String(buzPreS) + "}";
+        mqttClient.publish(getTopic("events").c_str(), doorMsg.c_str());
+    }
+    else if (action == "set_ntfy") {
+        if (!hasRolePermission("master", role)) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
+            return;
+        }
+        String url = doc["url"] | "https://ntfy.sh";
+        String topic = doc["topic"] | "";
+        if (topic.length() == 0) {
+            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Topic required\"}");
+            return;
+        }
+        ntfyUrl = url;
+        ntfyTopic = topic;
+        preferences.begin("geylca_apt", false);
+        preferences.putString("ntfyUrl", ntfyUrl);
+        preferences.putString("ntfyTopic", ntfyTopic);
+        preferences.end();
+        String ntfyMsg = "{\"message\":\"Ntfy config updated\",\"url\":\"" + ntfyUrl + "\",\"topic\":\"" + ntfyTopic + "\"}";
+        mqttClient.publish(getTopic("events").c_str(), ntfyMsg.c_str());
+        notificarNtfy("Modulo configurado para notificaciones");
     }
     else if (action == "factory_reset" && role == "master") {
         byte emptyBytes[32] = {0x00};
@@ -1038,6 +1308,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             preferences.begin("geylca_apt", true);
             String apto = preferences.getString(("s_" + String(slot)).c_str(), "");
             bool isSuspended = preferences.getBool(("sus_" + String(slot)).c_str(), false);
+            String blk = preferences.getString(("blk_" + String(slot)).c_str(), "");
+            long blkts = preferences.getLong(("blkts_" + String(slot)).c_str(), 0);
             preferences.end();
 
             String statusStr = isEmpty ? "empty" : (isSuspended ? "suspended" : "active");
@@ -1045,7 +1317,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             String resp = "{\"action\":\"slot_info\",\"slot\":" + String(slot) +
                          ",\"key\":\"" + keyHex +
                          "\",\"apto\":\"" + apto +
-                         "\",\"status\":\"" + statusStr + "\"}";
+                         "\",\"status\":\"" + statusStr + "\""
+                         ",\"blk\":\"" + blk + "\""
+                         ",\"blkts\":" + String(blkts) + "}";
             mqttClient.publish(getTopic("events").c_str(), resp.c_str());
         }
     }
@@ -1441,6 +1715,7 @@ void setup() {
     relayTimeDefault = preferences.getInt("relayTime", 1200);
     applySecurityMode(preferences.getInt("secMode", SECMODE_SOVICA));
     preferences.end();
+    cargarConfigAntiClon();
 
     preferences.begin("geylca_sec", false);
     deviceSecret = preferences.getString("dev_secret", "");
@@ -1450,7 +1725,13 @@ void setup() {
         sprintf(buf, "%04X%08X", (uint16_t)(chipid >> 32), (uint32_t)chipid);
         deviceSecret = String(buf) + "_" + String(millis());
         preferences.putString("dev_secret", deviceSecret);
+        Serial.println("[SYS] Secret maestro generado y guardado.");
     }
+    Serial.print("GEYLCA_PAIR {\"device_id\":\"");
+    Serial.print(deviceId);
+    Serial.print("\",\"secret\":\"");
+    Serial.print(deviceSecret);
+    Serial.println("\"}");
     adminKey = preferences.getString("key_admin", "");
     installerKey = preferences.getString("key_installer", "");
     if (!isPin6(adminKey)) {
@@ -1470,6 +1751,11 @@ void setup() {
     pinMode(PIN_BTN_PROG, INPUT_PULLUP);
     digitalWrite(PIN_RELAY, LOW);
     digitalWrite(PIN_LED, LOW);
+
+    pinMode(PIN_DOOR, INPUT_PULLUP);
+    ledcSetup(0, 2500, 8);
+    ledcAttachPin(PIN_BUZZER, 0);
+    ledcWriteTone(PIN_BUZZER, 0);
 
     Wire.begin(PIN_SDA, PIN_SCL);
 
@@ -1554,6 +1840,38 @@ void loop() {
         digitalWrite(PIN_RELAY, LOW);
         digitalWrite(PIN_LED, LOW);
         relayActive = false;
+    }
+
+    if (doorMonitoring && doorEnabled) {
+        bool abierta = puertaAbierta();
+        if (!abierta) {
+            if (doorClosedSince == 0) {
+                doorClosedSince = millis();
+            } else if (millis() - doorClosedSince >= 500) {
+                setBuzzer(false);
+                doorMonitoring = false;
+            }
+        } else {
+            doorClosedSince = 0;
+            unsigned long elapsed = millis() - doorOpenSince;
+            if (elapsed >= doorTimeoutMs) {
+                setBuzzer(false);
+                doorMonitoring = false;
+                if (doorMonitorSlot > 0) {
+                    bloquearSlot(doorMonitorSlot, "puerta_abierta");
+                } else if (mqttClient.connected()) {
+                    mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DOOR_TIMEOUT\",\"message\":\"Door left open (remote open)\"}");
+                }
+                notificarNtfy("Puerta abierta tiempo excedido");
+                Serial.println("[DOOR] Timeout de puerta superado.");
+            } else if (buzzerEnabled && elapsed >= doorTimeoutMs - buzzerPreMs) {
+                if (millis() - lastBuzzerToggle >= 500) {
+                    if (buzzerState) setBuzzer(false);
+                    else setBuzzer(true);
+                    lastBuzzerToggle = millis();
+                }
+            }
+        }
     }
 
     updateStatusLED();
@@ -1662,6 +1980,53 @@ void loop() {
             return;
         }
 
+        if (famFilter != 0 && addr[0] != (byte)famFilter) {
+            writeLog(7, 0, 0);
+            if (mqttClient.connected()) {
+                String payloadJSON = "{\"key\":\"" + llaveLeidaHex + "\",\"status\":\"DENIED\",\"reason\":\"family\"}";
+                mqttClient.publish(getTopic("events").c_str(), payloadJSON.c_str());
+            }
+            for (int i = 0; i < 3; i++) {
+                digitalWrite(PIN_LED, HIGH);
+                delay(150);
+                digitalWrite(PIN_LED, LOW);
+                delay(150);
+            }
+            ibutton.reset_search();
+            return;
+        }
+
+        if (rewriteProbe) {
+            if (probeLlaveReescribible()) {
+                int slotClon = 0;
+                ocEnsureBuilt();
+                byte oneKeyProbe[8];
+                for (int slot = 1; slot <= MAX_SLOTS && slotClon == 0; slot++) {
+                    if (!ocIsOccupied(slot)) continue;
+                    readEEPROM(slotAddr(slot), oneKeyProbe, slotBytes());
+                    if (keyMatches(oneKeyProbe, addr)) slotClon = slot;
+                }
+                if (slotClon != 0) {
+                    bloquearSlot(slotClon, "reescribible");
+                }
+                if (mqttClient.connected()) {
+                    String payloadJSON = "{\"key\":\"" + llaveLeidaHex + "\",\"status\":\"DENIED\",\"reason\":\"reescribible\"}";
+                    mqttClient.publish(getTopic("events").c_str(), payloadJSON.c_str());
+                }
+                Serial.println("[ANTICLON] Llave reescribible detectada y neutralizada (0000).");
+                for (int i = 0; i < 5; i++) {
+                    digitalWrite(PIN_LED, HIGH);
+                    delay(120);
+                    digitalWrite(PIN_LED, LOW);
+                    delay(120);
+                }
+                ibutton.reset_search();
+                return;
+            }
+            ibutton.reset_search();
+            delay(50);
+        }
+
         bool accesoPermitido = false;
         int slotEncontrado = -1;
 
@@ -1717,6 +2082,7 @@ void loop() {
             digitalWrite(PIN_LED, HIGH);
             relayActive = true;
             relayOffTime = millis() + relayTimeDefault;
+            if (doorEnabled) armarMonitoreoPuerta(slotEncontrado);
         } else {
             writeLog(7, 0, 0);
 

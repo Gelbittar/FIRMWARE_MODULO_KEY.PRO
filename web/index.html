@@ -569,6 +569,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 }
 .status-tag.active{background:rgba(0,224,168,.12);color:var(--success)}
 .status-tag.suspended{background:rgba(255,77,106,.12);color:var(--danger)}
+.status-tag.blocked{background:rgba(255,77,106,.2);color:var(--danger);border:1px solid var(--danger)}
 .status-tag.online{background:rgba(0,224,168,.12);color:var(--success)}
 .status-tag.offline{background:rgba(255,77,106,.12);color:var(--danger)}
 .status-tag.wait{background:rgba(255,179,71,.12);color:var(--warn)}
@@ -1059,7 +1060,7 @@ let moduleStateKnown = false;
 let lastModuleSeen = 0;
 let announcedOnline = false;
 
-const roles = {admin:["get_free_slots","get_slots","get_slot_info","suspend_slot"],installer:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","reset_wifi","set_role_key","get_role_keys","reset_admin_key","reset_installer_key"]};
+const roles = {admin:["get_free_slots","get_slots","get_slot_info","suspend_slot","block_slot","unblock_slot"],installer:["open","set_key","clear_slot","suspend_slot","set_apto","learn_key","confirm_key","cancel_learn","get_slots","get_free_slots","get_first_free_slot","get_logs","get_slot_info","set_relay","reset_wifi","set_role_key","get_role_keys","reset_admin_key","reset_installer_key"]};
 
 function canDo(action){return roles[currentRole] && roles[currentRole].includes(action)}
 
@@ -1203,6 +1204,18 @@ function formatTs(unix){
   if(!unix)return"--";
   const d=new Date(unix*1000);
   return d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+
+function reasonLabel(r){
+  if(r==="reescribible")return "Llave reescribible (clon)";
+  if(r==="puerta_abierta")return "Puerta abierta (timeout)";
+  if(r==="manual")return "Manual (admin)";
+  return r||"";
+}
+function formatDateTime(unix){
+  if(!unix)return"--";
+  const d=new Date(unix*1000);
+  return d.toLocaleString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
 }
 
 function setConnState(s){
@@ -1446,11 +1459,21 @@ function renderSlots(){
     tb.innerHTML=page.map(k=>{
       const d=slotData[k];
       const suspended=d.status==="suspended";
+      const blocked=d.blk&&d.blk.length>0;
       const togDis=canDo("suspend_slot")?"":" disabled";
       const delDis=canDo("clear_slot")?"":" disabled";
       const aptDis=canDo("set_apto")?"":" disabled";
-      const togLabel=suspended?"Activar":"Suspender";
-      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\"><span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span></td><td data-label=\"Acciones\"><button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+togLabel+"</button> <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+      const unDis=canDo("unblock_slot")?"":" disabled";
+      let badgeHtml;
+      if(blocked){
+        badgeHtml="<span class=\"status-tag blocked\">BLOQUEADA</span><div style=\"font-size:.68rem;opacity:.7;margin-top:.15rem\">"+escHtml(reasonLabel(d.blk))+" · "+escHtml(formatDateTime(d.blkts))+"</div>";
+      }else{
+        badgeHtml="<span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span>";
+      }
+      const actBtn=blocked
+        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
+        : "<button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
+      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
     }).join("");
   }
   document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
@@ -1493,7 +1516,7 @@ function processEvent(msg){
   }
 
   if(actionField==="slot_info"&&slotNum!==undefined){
-    slotData[slotNum]={key:d.key||"--",aparto:d.apto||"--",status:d.status||"active"};
+    slotData[slotNum]={key:d.key||"--",aparto:d.apto||"--",status:d.status||"active",blk:d.blk||"",blkts:d.blkts||0};
     renderSlots();
     toast("Slot #"+slotNum+" cargado","info");
     setWaiting(false);
@@ -1559,7 +1582,7 @@ function processEvent(msg){
     return;
   }
   if(d.status==="SLOTS_BATCH"&&Array.isArray(d.slots)){
-    d.slots.forEach(s=>{if(s&&s.slot)slotData[s.slot]={key:s.key||"--",aparto:s.apto||"--",status:s.sus?"suspended":"active"}});
+    d.slots.forEach(s=>{if(s&&s.slot)slotData[s.slot]={key:s.key||"--",aparto:s.apto||"--",status:s.sus?"suspended":"active",blk:s.blk||"",blkts:s.blkts||0}});
     return;
   }
   if(d.status==="SLOTS_DONE"){
@@ -1570,13 +1593,28 @@ function processEvent(msg){
     return;
   }
 
+  if(status==="BLOCKED"&&slotNum!==undefined){
+    if(slotData[slotNum]){slotData[slotNum].status="suspended";slotData[slotNum].blk=d.reason||"manual";slotData[slotNum].blkts=d.timestamp||Math.floor(Date.now()/1000);}
+    renderSlots();
+    toast("Slot #"+slotNum+" bloqueado ("+(d.reason||"manual")+")","warn");
+    setWaiting(false);
+    return;
+  }
+  if(d.message==="Slot unblocked"&&slotNum!==undefined){
+    if(slotData[slotNum]){slotData[slotNum].status="active";slotData[slotNum].blk="";slotData[slotNum].blkts=0;}
+    renderSlots();
+    toast("Slot #"+slotNum+" desbloqueado","success");
+    setWaiting(false);
+    return;
+  }
   if(status==="GRANTED"){
     toast("Puerta abierta — "+(d.apto||"Remoto"),"success");
     setWaiting(false);
     return;
   }
   if(status==="DENIED"){
-    toast("Acceso denegado: "+message,"error");
+    const reason=d.reason?(" ("+reasonLabel(d.reason)+")"):"";
+    toast("Acceso denegado"+reason,"error");
     setWaiting(false);
     return;
   }
@@ -2208,6 +2246,13 @@ window.GEYLCA.toggleSlot=function(slot){
   const newStatus=d.status==="suspended"?"active":"suspended";
   makeMsg("suspend_slot",{slot:slot,status:newStatus}).then(m=>publish(m));
   setWaiting(true);
+};
+window.GEYLCA.unblockSlot=function(slot){
+  if(!canDo("unblock_slot"))return;
+  showModal("Desbloquear Slot","¿Desbloquear el slot #"+slot+"? Se quita el bloqueo permanente y la llave vuelve a operar.",()=>{
+    makeMsg("unblock_slot",{slot:slot}).then(m=>publish(m));
+    setWaiting(true);
+  },"Desbloquear");
 };
 window.GEYLCA.editApto=function(slot){
   const d=slotData[slot];if(!d)return;
