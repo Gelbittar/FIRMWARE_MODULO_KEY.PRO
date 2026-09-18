@@ -2294,6 +2294,28 @@ function syncNtfyNative(){
   });
 }
 
+// ===== Notificaciones locales (APK) =====
+function localNotifyAvail(){
+  return !!(window.capacitorLocalNotifications&&window.capacitorLocalNotifications.LocalNotifications);
+}
+function showLocalNotification(title,body){
+  if(!isNativeCap())return;
+  loadNativeLib("lib/capacitor-local-notifications.js").then(ok=>{
+    if(!ok||!localNotifyAvail())return;
+    const ln=window.capacitorLocalNotifications.LocalNotifications;
+    const perm=ln.requestPermissions?ln.requestPermissions():Promise.resolve({});
+    perm.then(res=>{
+      if(res&&res.display==="denied")return;
+      if(ln.createChannel&&!window.__geylca_ln_chan){
+        window.__geylca_ln_chan=ln.createChannel({id:"geylca_events",name:"Eventos GEYLCA",importance:5,visibility:1}).then(()=>true).catch(()=>true);
+      }
+      (window.__geylca_ln_chan||Promise.resolve()).then(()=>{
+        ln.schedule({notifications:[{id:Math.floor(Date.now()%2147483647),title:title,body:body,channelId:"geylca_events",schedule:{at:new Date()}}]}).catch(()=>{});
+      }).catch(()=>{});
+    }).catch(()=>{});
+  });
+}
+
 // ===== Consola Maestra (multi-módulo) =====
 function loadMasterRegistry(){
   try{masterModules=JSON.parse(localStorage.getItem("geylca_master_modules")||"[]")}catch(e){masterModules=[]}

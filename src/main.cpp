@@ -15,14 +15,6 @@
 #include <HTTPClient.h>
 #include <esp_efuse.h>
 
-#define DEBUG_MODE 0
-
-#if DEBUG_MODE
-  #define DBG(x) Serial.println(x)
-#else
-  #define DBG(x)
-#endif
-
 #define PIN_SDA      25
 #define PIN_SCL      26
 #define PIN_IBUTTON  14
@@ -34,7 +26,6 @@
 #define EEPROM_ADDR  0x50
 
 #define MAX_SLOTS    4000
-int slotSize = 8;
 
 #define FIRMWARE_VERSION "2.5.0"
 
@@ -65,53 +56,6 @@ const int   mqtt_port   = 8883;
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = -14400;
 const int   dstOffset_sec = 0;
-
-const char rootCA[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
-TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
-cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
-WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
-ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
-MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
-h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
-0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6
-UA5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+s
-WT8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qy
-HB5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+
-UCB5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHz
-Uvjg0yIhj6st7V+FmuFnSyA6TpGmm8uKl6fMmbMLA7m/aRfEXvXzKMNKJuRCkyF
-GM1T2MRnlO0XRFB/raynFKVS4UCmToBdIZ8fdfEfIBFTVsO9JODnHhIoyOvu9tL
-eP2V12OGShIE12MiFsSnbIq7R8VlDe6rzKdENvOjogCfbz9b8a6yNkFaL8NDi9L
-54U2uMWrNcOBPV/g+VnhPPINic6LSVPKfsq0IzI0qBGQMzmfvq0GIU4Ln8aQL2eg
-itN5sfU5boPlCfni6M4iFB5lPNcj0wnTcQ7EHMpZVEBraKBsN77nG4k7brcO8vr
-k9OGmBhi4b+dv0vMVe33x0hizEUpJ1HcAo2gofE+QsHLSxR34p3DPHxIR4S4nIv
-upE1xt5IuNzVVHx6eau5RfSuNhGBW2F7DpHxKrf1wO4kS3gOFpFSvyzZNVmlCSr
-4acwY2el9Ei/jrLfGY9jGpOjMA9Q1JnInWR7Nf68g2xCrqm7JLz8OLOISatA8le
-WD+9AKX16d4FVVYe1MPhlWBVmi3E9Bm1r5FiNsXMvwJr8lD1mH6smK7Mz/0fsXJ
-YxJVKcFHqjz3lDTaY1eDSKMbZ37K9xN+SS8r9cFw7k/fjEnmPSXXs7jmvJJebd+
-a3cy7ZfRWFgf1RAw4Qq4hSjkhIz4Y03yGKHxSZ1PBsHG0DPbxF5S4BtHNp0H4nS
-/UoZzI3dMfKI2IcFzdiT7YUjHf0fXzG9a7aQxm/fbLlRf42v2mVVP3Tb6KO1G9+
-UMYJad2BjY/gMgJDBeNV6JCBH6g/jE0nIh8Nf2A4M7mS4E6R2piB0l2IPVd0huy
-ZSrW66X1lKXZx7y94u1y7IXfkWQNxIhLwG6F+dXUP8K4eBjaf8sDvrOD0MQdd
-07M9tCmQYIJm597dCa84mFxFmCC69mZIYqzFbmClPTpHYaEFhMi8kaXNRax4LjG
-hA9JbQwNvb4vHPEwvUH0bApPX4d0T9h2GE1F6kMNTwcrEU7dq858KuHgBoGeyz
-Lf7yE2dJD6uUf6vBGrGCRSDDLEOs5vO3DF9BHIjJ3MCQHwCoFm14Z7dFz7u17
-rU0wQDQYJKoZIhvcNAQELBQADggIBAHKbs15VL3B1KJMVXm2R8afAHKNsH0pS8R
-p6IhGkLdTj0eVFv1tbKI+K+ON5R5t4K2dV1LJDqOV/HBzT+MH2wBP3MKJMnlw6A
-4P2aFk0MJKVOAGZTs3NFVbcvJMj4K2x0tWRfTkHLBaB4d35I+xDUkFNJVCX9R0r
-/NbLnKzJOcyH6FNxaJkqO3OeVnE1dGSHTjFfMkFP+XXHxa1YZVt1+bNZsUC/JEf
-J9K+cR3e/7jznHeg82GjKYzR6kyBS2dqE/gK7BYGxMlE0nCj0gvqnF5V2Oe+xSn
-b4t3sbZjFFai6MFK3X27DHB6UdxO0iGF1mXL8s/hSIXXvJWemlLKC0GHNYFfK7D
-f3ZFNhMX7Wfn6g9vPOMK6yTb7jWQX0MPpDQ32dYbOE4KT75v8g8w0puqE0rzqP
-PQ4TY5tJejM5B3v7aIlfj5sF7FtVftUPYH1QjAq/rvsrp7HgJ2jVJtMw6RdDP1
-ix4kCfGRVJqe6ehpPJONH2t99VO0znPrHiU4CjcfMLNLO9I6P4qiebALM0S+3P
-IJ8OSa1anCkazf+rEZ199CJbNKzuUePJY/dPmJ4K+g7Ibmb/uZKYEqdNJiM49H
-1Xj/9GBOmVo69aG22Ef5Oo9a+pNFfJyzM2lS3/L8cHTqNK8VAWMISuCR6fDj/0
-1tPrqE6dA6FPPKMSQZfChD8r3JqVPFb09J74dG1yW/DNmN+KQ6f8RNYjNg3KJZ
-7s4Wv3O0ULlRnH6GNB6pHdRBGbdRX
------END CERTIFICATE-----
-)EOF";
 
 Preferences preferences;
 OneWire ibutton(PIN_IBUTTON);
@@ -193,7 +137,6 @@ void saveLogToEEPROM(int index, AccessLog &log);
 AccessLog readLogFromEEPROM(int index);
 void loadLogsFromEEPROM();
 int logCount = 0;
-bool isSafeKey(String k);
 
 String getTopic(const String& subtopic) {
     return "geylca/" + deviceId + "/" + subtopic;
@@ -448,11 +391,10 @@ int slotBytes() {
     return sovicaEnabled() ? 4 : securityMode;
 }
 
-// Aplica un modo de seguridad validado y recalcula slotSize.
+// Aplica un modo de seguridad validado.
 void applySecurityMode(int mode) {
     if (mode != SECMODE_SOVICA && mode != 4 && mode != 8) mode = SECMODE_SOVICA;
     securityMode = mode;
-    slotSize = slotBytes();
 }
 
 // Compara la ROM leída (8B) contra la casilla almacenada.
@@ -1510,16 +1452,6 @@ bool isPin6(String k) {
     return true;
 }
 
-bool isSafeKey(String k) {
-    if (k.length() == 0) return false;
-    for (unsigned int i = 0; i < k.length(); i++) {
-        char c = k.charAt(i);
-        bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '-' || c == '_';
-        if (!ok) return false;
-    }
-    return true;
-}
-
 void verificarConexionMQTT() {
     if (mqttClient.connected()) return;
     unsigned long ahora = millis();
@@ -1601,7 +1533,7 @@ void handleRoot() {
     html += "button{width:100%;padding:12px;background:#00b4d8;color:#0d1b2a;border:none;border-radius:6px;font-size:16px;font-weight:bold;cursor:pointer;margin-top:25px;}";
     html += "button:hover{background:#0096c7;}";
     html += "</style></head><body><div class='card'>";
-    html += "<h2>GEYLCA ACCESS CONTROL</h2><div class='subtitle'>Configuración de Módulo Wi-Fi v2.0</div>";
+    html += "<h2>GEYLCA ONE</h2><div class='subtitle'>Configuración de Módulo Wi-Fi v2.0</div>";
     html += "<form action='/connect' method='POST'>";
     html += "<label>Nombre / ID del Módulo:</label><input type='text' name='devid' value='" + deviceId + "' required>";
     html += "<label>Seleccione Red Wi-Fi:</label><select name='ssid'>" + options + "</select>";
@@ -1680,7 +1612,7 @@ void iniciarModoAP() {
     server.on("/", handleRoot);
     server.on("/connect", HTTP_POST, handleConnect);
     server.begin();
-    DBG("[SYSTEM] Modo AP iniciado: GEYLCA-Config (IP: 192.168.4.1)");
+    Serial.println("[SYSTEM] Modo AP iniciado: GEYLCA-Config (IP: 192.168.4.1)");
 }
 
 String generarDeviceIdUnico() {
@@ -1696,7 +1628,7 @@ void setup() {
     Serial.begin(115200);
     delay(500);
 
-    Serial.print("\n--- GEYLCA Control de Acceso v");
+    Serial.print("\n--- GEYLCA ONE v");
     Serial.print(FIRMWARE_VERSION);
     Serial.println(" (4000 Casillas) ---");
 

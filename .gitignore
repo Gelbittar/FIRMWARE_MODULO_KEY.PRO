@@ -15,4 +15,7 @@ app-master/dist
 include
 lib
 test
-PROGRAMADOR INALAMBRICO V1.0qrs/
+PROGRAMADOR INALAMBRICO V1.0/
+qrs/
+tools/__pycache__/
+*.pyc
