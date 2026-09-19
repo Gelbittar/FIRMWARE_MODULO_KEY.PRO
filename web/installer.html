@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="app-installer">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0a0f1a">
-<meta name="mobile-web-app-capable" "yes">
-<meta name="apple-mobile-web-app-capable" "yes">
-<meta name="apple-mobile-web-app-status-bar-style" "black-translucent">
+<meta name="theme-color" content="#0a1628">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="assets/icons/icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
@@ -14,75 +14,59 @@
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="lib/jsqr.min.js"></script>
-<link rel="stylesheet" href="css/design-system.css">
-<style>
-:root { --app-accent: #00e0a8; --app-accent-bg: rgba(0, 224, 168, 0.1); }
-#tabPairing, #tabLogs, #tabConsole, #tabMaster, #navPairing, #navLogs, #navConsole, #navMaster { display: none !important; }
-</style>
+<link rel="stylesheet" href="css/legacy-master.css">
 </head>
 <body>
 <div id="loginOverlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="login-box">
-    <div class="login-header">
-      <div class="login-logo" aria-hidden="true" style="color:var(--app-accent)">
-        <svg width="48" height="48" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="20" fill="currentColor"/><path d="M30 55v-6a20 20 0 0 1 40 0v6" stroke="white" stroke-width="7" fill="none"/><circle cx="50" cy="64" r="6" fill="white"/><rect x="46" y="64" width="8" height="14" fill="white"/></svg>
-      </div>
-      <h2 id="loginTitle">GEYLCA Installer</h2>
-      <p class="login-subtitle">Gestión multi-residencia y programación</p>
-    </div>
+    <h2 id="loginTitle">GEYLCA Installer</h2>
     <form id="loginForm" autocomplete="one-time-code">
-      <div class="form-group">
-        <label for="residenceSelect" class="form-label">Residencia / Cliente</label>
-        <select id="residenceSelect" class="form-select" required>
-          <option value="">Seleccionar residencia...</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin-top:var(--space-3)">
-        <label for="pinInput" class="form-label">PIN Instalador (6 dígitos)</label>
-        <input type="password" id="pinInput" class="form-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="one-time-code" required>
-      </div>
-      <div class="form-check" style="margin:var(--space-3) 0">
+      <label for="residenceSelect">Residencia / Cliente</label>
+      <select id="residenceSelect" class="form-select" required>
+        <option value="">Seleccionar residencia...</option>
+      </select>
+      <label for="pinInput" style="margin-top:1rem">PIN Instalador (6 dígitos)</label>
+      <input type="password" id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="one-time-code" required>
+      <div class="form-check" style="margin:1rem 0">
         <input type="checkbox" id="bioLogin" class="form-check-input">
         <label for="bioLogin" class="form-check-label">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:var(--space-2);vertical-align:-2px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M8 12a4 4 0 1 1 8 0 4 4 0 0 1-8 0z"/><circle cx="12" cy="12" r="2"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:.6rem;vertical-align:-2px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M8 12a4 4 0 1 1 8 0 4 4 0 0 1-8 0z"/><circle cx="12" cy="12" r="2"/></svg>
           Usar biometría para próximas veces
         </label>
       </div>
-      <button type="submit" class="btn btn-primary btn-block btn-lg" id="btnLogin" style="--btn-bg:var(--app-accent);--btn-hover:var(--app-accent-dim)">Acceder</button>
+      <button type="submit" class="btn-primary" id="btnLogin">Acceder</button>
     </form>
-    <div class="login-footer">
-      <button type="button" class="btn btn-ghost btn-sm" id="btnManageResidences">Gestionar residencias</button>
-      <button type="button" class="btn btn-ghost btn-sm" id="btnSwitchModule">Cambiar módulo</button>
+    <div class="login-box row" style="margin-top:1rem;justify-content:center;gap:.5rem;flex-wrap:wrap">
+      <button type="button" class="btn-outline btn-sm" id="btnManageResidences">Gestionar residencias</button>
+      <button type="button" class="btn-outline btn-sm" id="btnSwitchModule">Cambiar módulo</button>
     </div>
   </div>
 </div>
 
-<div id="appContainer" class="app-container" style="display:none;flex-direction:column;min-height:100vh">
-  <header class="app-header">
-    <div class="header-left">
-      <div class="logo">GEYLCA</div>
-      <span id="headerDevice" class="device-label"></span>
-    </div>
+<div id="appContainer" style="display:none;flex-direction:column;min-height:100vh">
+  <header>
+    <div class="logo">GEYLCA</div>
+    <span id="headerDevice" class="device-label"></span>
     <span class="spacer"></span>
-    <div style="display:flex;align-items:center;gap:var(--space-3)">
-      <span id="activeResidence" class="badge" style="background:var(--app-accent-bg);color:var(--app-accent);font-size:var(--text-xs)"></span>
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <span id="activeResidence" class="badge" style="background:rgba(0,224,168,.15);color:var(--accent);font-size:.65rem"></span>
       <span id="moduleBadge" class="status-tag wait">VERIFICANDO</span>
       <span id="connStatus" class="conn-dot off" title="Desconectado"></span>
-      <button id="btnSwitchResidence" class="btn btn-ghost btn-sm" aria-label="Cambiar residencia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5"/><path d="M16 6l4 4-4 4"/></svg></button>
-      <button id="btnDisconnect" class="btn btn-ghost btn-icon" aria-label="Desconectar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button id="btnSwitchResidence" class="btn-ghost btn-sm" aria-label="Cambiar residencia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5"/><path d="M16 6l4 4-4 4"/></svg></button>
+      <button id="btnDisconnect" aria-label="Desconectar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
   </header>
 
-  <nav id="tabNav" class="tabs" role="tablist">
-    <button role="tab" class="tab-btn active" data-tab="tabDashboard" aria-selected="true">Dashboard</button>
-    <button role="tab" class="tab-btn" data-tab="tabSlots" aria-selected="false">Slots</button>
-    <button role="tab" class="tab-btn" data-tab="tabConfig" aria-selected="false" id="navConfig">Config</button>
-    <button role="tab" class="tab-btn" data-tab="tabBlocked" aria-selected="false" id="navBlocked">Bloqueados</button>
-    <button role="tab" class="tab-btn" data-tab="tabResidences" aria-selected="false" id="navResidences">Residencias</button>
-    <button role="tab" class="tab-btn" data-tab="tabBackup" aria-selected="false" id="navBackup">Backup</button>
+  <nav id="tabNav" role="tablist">
+    <button role="tab" class="active" data-tab="tabDashboard" aria-selected="true">Dashboard</button>
+    <button role="tab" data-tab="tabSlots" aria-selected="false">Slots</button>
+    <button role="tab" data-tab="tabConfig" aria-selected="false" id="navConfig">Config</button>
+    <button role="tab" data-tab="tabBlocked" aria-selected="false" id="navBlocked">Bloqueados</button>
+    <button role="tab" data-tab="tabResidences" aria-selected="false" id="navResidences">Residencias</button>
+    <button role="tab" data-tab="tabBackup" aria-selected="false" id="navBackup">Backup</button>
   </nav>
 
-  <main class="app-main" role="main">
+  <main role="main">
     <div id="tabDashboard" class="tab active" role="tabpanel">
       <div class="stat-grid">
         <div class="stat-card"><div class="label">Broker MQTT</div><div class="value" id="statConn"><span class="status-dot off"></span> OFFLINE</div></div>
@@ -90,41 +74,41 @@
         <div class="stat-card"><div class="label">Libres</div><div class="value" id="statFree">--</div></div>
         <div class="stat-card"><div class="label">Modo Seguridad</div><div class="value" id="statSecMode">--</div></div>
       </div>
-      <button class="btn btn-primary btn-block btn-lg" id="btnOpenDoor" disabled style="--btn-bg:var(--app-accent)">ABRIR PUERTA</button>
-      <div class="btn-row" style="justify-content:center;margin-top:var(--space-3)"><button class="btn btn-outline" id="btnRefreshStatus" disabled>Actualizar Estado</button></div>
-      <div class="card" style="margin-top:var(--space-4)"><div class="card-header"><h3 class="card-title">Eventos Recientes</h3></div><div class="card-body p-0"><div class="table-wrap"><table class="table"><thead><tr><th>Hora</th><th>Evento</th><th>Detalle</th></tr></thead><tbody id="eventTableBody"><tr><td colspan="3" class="empty-msg">Esperando eventos...</td></tr></tbody></table></div></div></div>
+      <button class="big-btn" id="btnOpenDoor" disabled>ABRIR PUERTA</button>
+      <div class="btn-row" style="justify-content:center;margin-top:.8rem"><button class="btn-outline" id="btnRefreshStatus" disabled>Actualizar Estado</button></div>
+      <div class="card" style="margin-top:1rem"><div class="card-header"><h3 class="card-title">Eventos Recientes</h3></div><div class="card-body" style="padding:0"><div class="table-wrap"><table class="table"><thead><tr><th>Hora</th><th>Evento</th><th>Detalle</th></tr></thead><tbody id="eventTableBody"><tr><td colspan="3" class="table-empty">Esperando eventos...</td></tr></tbody></table></div></div></div>
     </div>
 
     <div id="tabSlots" class="tab" role="tabpanel">
-      <div class="sub-tabs"><button class="sub-tab-btn active" data-sub="slotsView">Casillas</button><button class="sub-tab-btn" data-sub="progView">Programador</button></div>
-      <div id="slotsView" class="subview">
-        <div class="card"><div class="card-header"><h3 class="card-title">Agregar / Editar Key</h3></div><div class="card-body"><div id="learnWaitBox" class="learn-wait" style="display:none;padding:var(--space-4);background:var(--color-info-bg);border:1px solid var(--color-info);border-radius:var(--radius-md);color:var(--color-info);text-align:center">Esperando presentación de llave...</div><div class="form-row" id="addKeyForm"><div class="form-group"><label class="form-label">Slot</label><input type="number" id="slotNum" class="form-input" placeholder="Auto (libre)" min="1" max="4000"></div><div class="form-group"><label class="form-label">Key (hex)</label><input type="text" id="slotKey" class="form-input" placeholder="8-16 chars hex" maxlength="16"></div><div class="form-group"><label class="form-label">Apartamento</label><input type="text" id="slotApto" class="form-input" placeholder="Ej: 4B"></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetKey" disabled>Guardar</button></div></div><div class="btn-row" style="margin-top:var(--space-3)"><button class="btn btn-outline" id="btnLearnKey" disabled>Learn Key</button><button class="btn btn-outline" id="btnFindFreeSlot" disabled>Buscar Casilla Libre</button></div></div></div>
-        <div class="card"><div class="card-header"><h3 class="card-title">Slots</h3><button class="btn btn-primary btn-sm" id="btnQuerySlot" disabled>Consultar Slots</button></div><div class="card-body"><div class="filter-bar"><input id="slotFilter" type="text" class="form-input" placeholder="Buscar..." style="max-width:300px"><select id="slotOrder" class="form-select" style="max-width:180px"><option value="slot-asc">Slot ↑</option><option value="slot-desc">Slot ↓</option><option value="apto-asc">Apto A-Z</option><option value="apto-desc">Apto Z-A</option></select></div><div class="table-wrap"><table class="table"><thead><tr><th>Slot</th><th>Apartamento</th><th>Key</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="slotTableBody"><tr><td colspan="5" class="empty-msg">Presione "Consultar Slots"</td></tr></tbody></table></div></div></div>
+      <div class="subnav"><button class="active" data-sub="slotsView">Casillas</button><button data-sub="progView">Programador</button></div>
+      <div id="slotsView" class="subview active">
+        <div class="card"><div class="card-header"><h3 class="card-title">Agregar / Editar Key</h3></div><div class="card-body"><div id="learnWaitBox" class="learn-wait" style="display:none">Esperando presentación de llave...</div><div class="form-row" id="addKeyForm"><div class="form-group"><label>Slot</label><input type="number" id="slotNum" class="form-input" placeholder="Auto (libre)" min="1" max="4000"></div><div class="form-group"><label>Key (hex)</label><input type="text" id="slotKey" class="form-input" placeholder="8-16 chars hex" maxlength="16"></div><div class="form-group"><label>Apartamento</label><input type="text" id="slotApto" class="form-input" placeholder="Ej: 4B"></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetKey" disabled>Guardar</button></div></div><div class="btn-row" style="margin-top:.8rem"><button class="btn-outline" id="btnLearnKey" disabled>Learn Key</button><button class="btn-outline" id="btnFindFreeSlot" disabled>Buscar Casilla Libre</button></div></div></div>
+        <div class="card"><div class="card-header"><h3 class="card-title">Slots</h3><button class="btn-primary btn-sm" id="btnQuerySlot" disabled>Consultar Slots</button></div><div class="card-body"><div class="filter-bar"><input id="slotFilter" type="text" class="form-input" placeholder="Buscar..." style="max-width:300px"><select id="slotOrder" class="form-select" style="max-width:180px"><option value="slot-asc">Slot ↑</option><option value="slot-desc">Slot ↓</option><option value="apto-asc">Apto A-Z</option><option value="apto-desc">Apto Z-A</option></select></div><div class="table-wrap"><table class="table"><thead><tr><th>Slot</th><th>Apartamento</th><th>Key</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="slotTableBody"><tr><td colspan="5" class="table-empty">Presione "Consultar Slots"</td></tr></tbody></table></div></div></div>
       </div>
-      <div id="progView" class="subview" style="display:none"><div class="card"><div class="card-header"><h3 class="card-title">Lector de Llaves</h3></div><div class="card-body"><p style="color:var(--color-text-muted);margin-bottom:var(--space-4)">Presente una llave iButton cerca del lector.</p><div id="progReadStatus" style="font-size:var(--text-base);margin-bottom:var(--space-4);padding:var(--space-3);background:var(--color-bg);border-radius:var(--radius-md);font-family:var(--font-mono);text-align:center;min-height:2.5rem"></div><div class="btn-row"><button class="btn btn-primary" id="btnProgRead">Leer Llave</button></div></div></div></div>
+      <div id="progView" class="subview"><div class="card"><div class="card-header"><h3 class="card-title">Lector de Llaves</h3></div><div class="card-body"><p style="color:var(--text2);margin-bottom:1rem">Presente una llave iButton cerca del lector.</p><div id="progReadStatus" style="font-size:.9rem;margin-bottom:1rem;padding:.8rem;background:var(--input-bg);border-radius:var(--radius-sm);font-family:monospace;text-align:center;min-height:2.5rem"></div><div class="btn-row"><button class="btn-primary" id="btnProgRead">Leer Llave</button></div></div></div></div>
     </div>
 
     <div id="tabConfig" class="tab" role="tabpanel">
-      <div class="card"><div class="card-header"><h3 class="card-title">Relay Time</h3></div><div class="card-body"><div class="form-row"><div class="form-group"><label class="form-label">Segundos</label><input id="relayTime" type="number" class="form-input" min="1" max="30" value="3"></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetRelay" disabled>Guardar</button></div></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Modo de Seguridad</h3></div><div class="card-body"><div class="form-row"><div class="form-group"><label class="form-label">Tipo</label><select id="secModeSelect" class="form-select"><option value="3">SÓVICA (3 bytes)</option><option value="4">4 bytes (standard)</option><option value="8">8 bytes (extended)</option></select></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetSecMode" disabled>Guardar</button></div></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Anti-clon de Llaves</h3><p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4)">Al activar, el módulo escribe <b>0000</b> en la ROM de cada llave: si es reescribible (clon RW1990) queda neutralizada y su slot se bloquea. Las SÓVICA originales no se alteran.</p><div class="form-row"><label class="form-check" style="align-self:center"><input type="checkbox" id="rewriteProbeCheck"><span class="form-check-label">Habilitar detección de llaves reescribibles</span></label><button class="btn btn-primary" id="btnSetRewriteProbe" disabled>Guardar</button></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Filtro de Familia (1-Wire)</h3><p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4)">0 = todas. SÓVICA usa familia <b>0x81</b>.</p><div class="form-row"><div class="form-group"><label class="form-label">Familia (0-255)</label><input id="famFilter" type="number" class="form-input" min="0" max="255" value="0"></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetFamFilter" disabled>Guardar</button></div></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Sensor de Puerta + Buzzer</h3><p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4)">GPIO 32 (puerta) y GPIO 33 (buzzer).</p><div class="form-row"><label class="form-check" style="align-self:center"><input type="checkbox" id="doorEnabledCheck"><span class="form-check-label">Habilitar control de puerta</span></label><label class="form-check" style="align-self:center"><input type="checkbox" id="buzzerCheck" checked><span class="form-check-label">Buzzer pre-alarma</span></label></div><div class="form-row"><div class="form-group"><label class="form-label">Tiempo máx. (s)</label><input id="doorTimeout" type="number" class="form-input" min="5" max="600" value="60"></div><div class="form-group"><label class="form-label">Pre-alarma (s)</label><input id="doorPreBuzzer" type="number" class="form-input" min="1" max="120" value="10"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Lógica sensor</label><select id="doorNCSelect" class="form-select"><option value="1">NC (cerrada=contacto cerrado)</option><option value="0">NO (abierta=contacto cerrado)</option></select></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetDoorConfig" disabled>Guardar</button></div></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Notificaciones Push (ntfy.sh)</h3><p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4)">POST a <code>https://ntfy.sh/<topic></code> al bloquear slot.</p><div class="form-row"><div class="form-group"><label class="form-label">URL base</label><input id="ntfyUrl" type="text" class="form-input" value="https://ntfy.sh"></div><div class="form-group"><label class="form-label">Topic</label><input id="ntfyTopic" type="text" class="form-input" placeholder="mi-tema-geylca"></div><div class="form-group" style="flex:0 0 auto"><label class="form-label">&nbsp;</label><button class="btn btn-primary btn-block" id="btnSetNtfy" disabled>Guardar</button></div></div><div class="btn-row"><button class="btn btn-outline btn-sm" id="btnTestNtfy" disabled>Enviar prueba</button><span id="ntfyStatus" style="font-size:var(--text-xs);color:var(--color-text-muted);flex:1"></span></div></div></div>
-      <div class="card"><div class="card-header"><h3 class="card-title">Mantenimiento</h3></div><div class="card-body"><div class="btn-row"><button class="btn btn-danger" id="btnResetWifi" disabled>Reset WiFi</button><button class="btn btn-danger" id="btnWipeSlots" disabled>Borrar Todas Las Casillas</button></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Relay Time</h3></div><div class="card-body"><div class="form-row"><div class="form-group"><label>Segundos</label><input id="relayTime" type="number" class="form-input" min="1" max="30" value="3"></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetRelay" disabled>Guardar</button></div></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Modo de Seguridad</h3></div><div class="card-body"><div class="form-row"><div class="form-group"><label>Tipo</label><select id="secModeSelect" class="form-select"><option value="3">SÓVICA (3 bytes)</option><option value="4">4 bytes (standard)</option><option value="8">8 bytes (extended)</option></select></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetSecMode" disabled>Guardar</button></div></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Anti-clon de Llaves</h3><p style="font-size:.78rem;color:var(--text2);margin-bottom:1rem">Al activar, el módulo escribe <b>0000</b> en la ROM de cada llave: si es reescribible (clon RW1990) queda neutralizada y su slot se bloquea. Las SÓVICA originales no se alteran.</p><div class="form-row"><label class="form-check" style="align-self:center"><input type="checkbox" id="rewriteProbeCheck"><span class="form-check-label">Habilitar detección de llaves reescribibles</span></label><button class="btn-primary" id="btnSetRewriteProbe" disabled>Guardar</button></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Filtro de Familia (1-Wire)</h3><p style="font-size:.78rem;color:var(--text2);margin-bottom:1rem">0 = todas. SÓVICA usa familia <b>0x81</b>.</p><div class="form-row"><div class="form-group"><label>Familia (0-255)</label><input id="famFilter" type="number" class="form-input" min="0" max="255" value="0"></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetFamFilter" disabled>Guardar</button></div></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Sensor de Puerta + Buzzer</h3><p style="font-size:.78rem;color:var(--text2);margin-bottom:1rem">GPIO 32 (puerta) y GPIO 33 (buzzer).</p><div class="form-row"><label class="form-check" style="align-self:center"><input type="checkbox" id="doorEnabledCheck"><span class="form-check-label">Habilitar control de puerta</span></label><label class="form-check" style="align-self:center"><input type="checkbox" id="buzzerCheck" checked><span class="form-check-label">Buzzer pre-alarma</span></label></div><div class="form-row"><div class="form-group"><label>Tiempo máx. (s)</label><input id="doorTimeout" type="number" class="form-input" min="5" max="600" value="60"></div><div class="form-group"><label>Pre-alarma (s)</label><input id="doorPreBuzzer" type="number" class="form-input" min="1" max="120" value="10"></div></div><div class="form-row"><div class="form-group"><label>Lógica sensor</label><select id="doorNCSelect" class="form-select"><option value="1">NC (cerrada=contacto cerrado)</option><option value="0">NO (abierta=contacto cerrado)</option></select></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetDoorConfig" disabled>Guardar</button></div></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Notificaciones Push (ntfy.sh)</h3><p style="font-size:.78rem;color:var(--text2);margin-bottom:1rem">POST a <code>https://ntfy.sh/<topic></code> al bloquear slot.</p><div class="form-row"><div class="form-group"><label>URL base</label><input id="ntfyUrl" type="text" class="form-input" value="https://ntfy.sh"></div><div class="form-group"><label>Topic</label><input id="ntfyTopic" type="text" class="form-input" placeholder="mi-tema-geylca"></div><div class="form-group" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn-primary" id="btnSetNtfy" disabled>Guardar</button></div></div><div class="btn-row"><button class="btn-outline btn-sm" id="btnTestNtfy" disabled>Enviar prueba</button><span id="ntfyStatus" style="font-size:.7rem;color:var(--text2);flex:1"></span></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Mantenimiento</h3></div><div class="card-body"><div class="btn-row"><button class="btn-danger" id="btnResetWifi" disabled>Reset WiFi</button><button class="btn-danger" id="btnWipeSlots" disabled>Borrar Todas Las Casillas</button></div></div></div>
     </div>
 
     <div id="tabBlocked" class="tab" role="tabpanel">
-      <div class="card"><div class="card-header"><h3 class="card-title">Slots Bloqueados</h3></div><div class="card-body"><p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4)">Bloqueados por anti-clon, puerta abierta o manualmente.</p><div class="btn-row"><button class="btn btn-primary" id="btnRefreshBlocked" disabled>Cargar Bloqueados</button><span id="blockedInfo" style="font-size:var(--text-sm);color:var(--color-text-muted);flex:1"></span></div><div class="table-wrap"><table class="table"><thead><tr><th>Slot</th><th>Apartamento</th><th>Motivo</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="blockedTableBody"><tr><td colspan="5" class="empty-msg">Presione "Cargar Bloqueados"</td></tr></tbody></table></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Slots Bloqueados</h3></div><div class="card-body"><p style="font-size:.78rem;color:var(--text2);margin-bottom:1rem">Bloqueados por anti-clon, puerta abierta o manualmente.</p><div class="btn-row"><button class="btn-primary" id="btnRefreshBlocked" disabled>Cargar Bloqueados</button><span id="blockedInfo" style="font-size:.78rem;color:var(--text2);flex:1"></span></div><div class="table-wrap"><table class="table"><thead><tr><th>Slot</th><th>Apartamento</th><th>Motivo</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="blockedTableBody"><tr><td colspan="5" class="table-empty">Presione "Cargar Bloqueados"</td></tr></tbody></table></div></div></div>
     </div>
 
     <div id="tabResidences" class="tab" role="tabpanel">
-      <div class="card"><div class="card-header"><h3 class="card-title">Mis Residencias / Clientes</h3><button class="btn btn-primary btn-sm" id="btnAddResidence">+ Nueva Residencia</button></div><div class="card-body"><div id="residencesList"></div></div></div>
-      <div class="card" style="margin-top:var(--space-4)"><div class="card-header"><h3 class="card-title">Módulos en Residencia Activa</h3></div><div class="card-body"><div id="residenceModulesList"></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Mis Residencias / Clientes</h3><button class="btn-primary btn-sm" id="btnAddResidence">+ Nueva Residencia</button></div><div class="card-body"><div id="residencesList"></div></div></div>
+      <div class="card" style="margin-top:1rem"><div class="card-header"><h3 class="card-title">Módulos en Residencia Activa</h3></div><div class="card-body"><div id="residenceModulesList"></div></div></div>
     </div>
 
     <div id="tabBackup" class="tab" role="tabpanel">
-      <div class="card"><div class="card-header"><h3 class="card-title">Backup / Restore</h3></div><div class="card-body"><div class="btn-row"><button class="btn btn-primary" id="btnCreateBackup">Crear Backup</button><button class="btn btn-outline" id="btnImportBackup">Importar Backup</button><input type="file" id="backupFileInput" accept=".json" style="display:none"></div><div style="margin-top:var(--space-3)"><h4 style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-2)">Backups de esta residencia</h4><div id="backupList" class="table-wrap"><table class="table"><thead><tr><th>Módulo</th><th>Fecha</th><th>Slots</th><th>Acciones</th></tr></thead><tbody id="backupTableBody"><tr><td colspan="4" class="empty-msg">Sin backups</td></tr></tbody></table></div></div></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Backup / Restore</h3></div><div class="card-body"><div class="btn-row"><button class="btn-primary" id="btnCreateBackup">Crear Backup</button><button class="btn-outline" id="btnImportBackup">Importar Backup</button><input type="file" id="backupFileInput" accept=".json" style="display:none"></div><div style="margin-top:1rem"><h4 style="font-size:.78rem;color:var(--text2);margin-bottom:.5rem">Backups de esta residencia</h4><div class="table-wrap"><table class="table"><thead><tr><th>Módulo</th><th>Fecha</th><th>Slots</th><th>Acciones</th></tr></thead><tbody id="backupTableBody"><tr><td colspan="4" class="table-empty">Sin backups</td></tr></tbody></table></div></div></div></div>
     </div>
   </main>
 
