@@ -12,7 +12,12 @@ const AppInstaller = (function() {
     await BiometricAuth.init();
     loadResidences();
     renderResidences();
-    showLogin();
+    const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
+    if (modules.length === 0) {
+      showModuleSelector();
+    } else {
+      showLogin();
+    }
   }
 
   function setupTabs() {
@@ -560,7 +565,53 @@ const AppInstaller = (function() {
     e.target.value = '';
   }
 
-  function showModuleSelector() { /* similar */ }
+  function showModuleSelector() {
+    const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
+    const html = modules.length ? modules.map(m => `
+      <div class="card" style="margin-bottom:var(--space-3);cursor:pointer" onclick="selectModule('${m.id}')">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><strong>${m.name}</strong><br><small style="color:var(--color-text-muted)">${m.id}</small></div>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+      </div>
+    `).join('') : '<p style="text-align:center;color:var(--color-text-muted)">No hay módulos guardados</p>';
+    GEYLCA.showModal('Seleccionar Módulo', html + '<div class="btn-row" style="margin-top:var(--space-4)"><button class="btn btn-primary" onclick="addNewModule()">+ Agregar Módulo</button></div>');
+  }
+
+  window.selectModule = (id) => {
+    const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
+    const module = modules.find(m => m.id === id);
+    if (module) {
+      currentModule = module;
+      GEYLCA.showToast('Módulo seleccionado: ' + module.name, 'info');
+      showLogin();
+    }
+  };
+
+  window.addNewModule = () => {
+    GEYLCA.showModal('Agregar Módulo', `
+      <div class="form-group"><label class="form-label">Device ID</label><input id="newModuleId" class="form-input" placeholder="mod_xxxxxxxx"></div>
+      <div class="form-group"><label class="form-label">Nombre</label><input id="newModuleName" class="form-input" placeholder="Ej: Entrada Principal"></div>
+      <div class="form-group"><label class="form-label">Secret (opcional)</label><input id="newModuleSecret" class="form-input" placeholder="Se genera automáticamente"></div>
+    `, [
+      { label: 'Cancelar', variant: 'ghost', value: false },
+      { label: 'Guardar', variant: 'primary', value: true },
+    ]).then(result => {
+      if (result) {
+        const id = document.getElementById('newModuleId').value.trim();
+        const name = document.getElementById('newModuleName').value.trim();
+        if (!id) { GEYLCA.showToast('Device ID requerido', 'error'); return; }
+        const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
+        modules.push({ id, name, secret: document.getElementById('newModuleSecret').value.trim() });
+        localStorage.setItem('geylca_modules', JSON.stringify(modules));
+        GEYLCA.showToast('Módulo guardado', 'success');
+        currentModule = { id, name };
+        showLogin();
+      }
+    });
+  };
 
   document.addEventListener('DOMContentLoaded', init);
   return { init };

@@ -10,7 +10,12 @@ const AppOperator = (function() {
     setupEventListeners();
     await BiometricAuth.init();
     loadSavedModules();
-    showLogin();
+    const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
+    if (modules.length === 0) {
+      showModuleSelector(); // First run: select/add module first
+    } else {
+      showLogin();
+    }
   }
 
   function setupTabs() {
@@ -337,9 +342,9 @@ const AppOperator = (function() {
     const modules = JSON.parse(localStorage.getItem('geylca_modules') || '[]');
     const module = modules.find(m => m.id === id);
     if (module) {
-      document.getElementById('headerDevice').textContent = module.name;
       currentModule = module;
       GEYLCA.showToast('Módulo seleccionado: ' + module.name, 'info');
+      showLogin(); // Now show PIN entry
     }
   };
 
@@ -360,6 +365,9 @@ const AppOperator = (function() {
         modules.push({ id, name, secret: document.getElementById('newModuleSecret').value.trim() });
         localStorage.setItem('geylca_modules', JSON.stringify(modules));
         GEYLCA.showToast('Módulo guardado', 'success');
+        // Auto-select the new module and show login
+        currentModule = { id, name };
+        showLogin();
       }
     });
   };
