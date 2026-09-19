@@ -533,6 +533,72 @@ input, select, textarea { width: 100%; }
 .empty-title { font-size: var(--text-lg); font-weight: 600; color: var(--color-text); margin-bottom: var(--space-2); }
 .empty-desc { font-size: var(--text-sm); max-width: 280px; }
 
+/* ============================================================
+   LOGIN OVERLAY
+   ============================================================ */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, var(--color-bg), var(--color-bg-elevated));
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+}
+.login-box {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.3s ease;
+}
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+.login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--app-accent-bg);
+  color: var(--app-accent);
+  margin: 0 auto var(--space-4);
+}
+.login-header h2 {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--app-accent), var(--color-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-1);
+}
+.login-subtitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.login-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.form-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-dim);
+  margin-top: var(--space-1);
+}
+.login-footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: center;
+}
+
 @media (max-width: 640px) {
   :root { --header-h: 52px; --nav-h: 56px; }
   .form-row > * { min-width: 100%; }
