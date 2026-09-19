@@ -1,4 +1,4 @@
-# Manual del Módulo GEYLCA (Firmware)
+# Manual del Módulo XSMART KEYPRO (Firmware)
 
 Firmware para ESP32: control de acceso por llave iButton (Dallas 1-Wire) con gestión de casillas (slots) y comunicación MQTT.
 
@@ -99,12 +99,12 @@ El firmware está pensado para el **ESP32 clásico** (chip Xtensa **ESP32-D0WD /
 
 ## Versiones y OTA
 
-El repositorio de **código fuente** (`FIRMWARE_MODULO_KEY.PRO`) es **privado**; los binarios se publican en el repositorio público **`GEYLCA-Assets`**:
-`https://github.com/Gelbittar/GEYLCA-Assets`
+El repositorio de **código fuente** (`FIRMWARE_MODULO_KEY.PRO`) es **privado**; los binarios se publican en el repositorio público **`XSMART KEYPRO-Assets`**:
+`https://github.com/Gelbittar/XSMART KEYPRO-Assets`
 
 Archivo por versión: `firmware.bin`.
 La consola maestra puede actualizar el módulo por aire (OTA) con la URL del release:
-`https://github.com/Gelbittar/GEYLCA-Assets/releases/download/vX.Y.Z/firmware.bin`
+`https://github.com/Gelbittar/XSMART KEYPRO-Assets/releases/download/vX.Y.Z/firmware.bin`
 
 El ESP32 tiene particiones **app0 / app1 / otadata**: si un OTA falla, el módulo vuelve solo a la versión anterior.
 
@@ -137,7 +137,7 @@ Para **reutilizar el ESP-01** en otro proyecto, flashear ese otro firmware (borr
    `pio run -t upload --upload-port /dev/ttyUSBX`
    o restaurar el binario directo:
    `esptool.py --port /dev/ttyUSBX write_flash 0x0 release/firmware-esp01.bin`
-3. Conectar el lector iButton y alimentarlo; reconfigurar WiFi por el portal WiFiManager (AP `GEYLCA-Config`) si se borró la config (LittleFS).
+3. Conectar el lector iButton y alimentarlo; reconfigurar WiFi por el portal WiFiManager (AP `XSMART KEYPRO-Config`) si se borró la config (LittleFS).
 
 ## Datos de fábrica (para pruebas)
 

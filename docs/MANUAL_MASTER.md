@@ -1,4 +1,4 @@
-# Manual de la Consola Maestra GEYLCA (multi-módulo)
+# Manual de la Consola Maestra XSMART KEYPRO (multi-módulo)
 
 Aplicación **aparte** de la app de operador/instalador. Permite administrar **todos los módulos** del edificio desde un solo lugar, además de configurar cada módulo en profundidad (Pairing/QR, relé, modo de seguridad, claves de roles) y hacer OTA.
 
@@ -6,7 +6,7 @@ Aplicación **aparte** de la app de operador/instalador. Permite administrar **t
 
 - **Web**: `web/master.html` (se abre en cualquier navegador moderno).
 - **App Android (APK)**: se publica como adjunto de cada release en el repositorio público de binarios:
-  `https://github.com/Gelbittar/GEYLCA-Assets/releases/latest` → archivo **`master.apk`**
+  `https://github.com/Gelbittar/XSMART KEYPRO-Assets/releases/latest` → archivo **`master.apk`**
   - Instalar el APK en el celular del administrador (activar "fuentes desconocidas").
 
 ## Clave de la app (local, una vez por instalación)
@@ -59,13 +59,13 @@ Al pulsar **OTA**:
 3. Aceptar → el módulo descarga `firmware.bin`, verifica el hash (si se envió MD5) y se reinicia con la nueva versión.
 
 URL por versión (misma para todos los módulos):
-`https://github.com/Gelbittar/GEYLCA-Assets/releases/download/vX.Y.Z/firmware.bin`
+`https://github.com/Gelbittar/XSMART KEYPRO-Assets/releases/download/vX.Y.Z/firmware.bin`
 
 Si algo sale mal, el ESP32 vuelve solo a la versión anterior (app0/app1). La columna **FW** de la tabla se actualiza con `Info`.
 
 ## Estructura de releases
 
-El repositorio de **código fuente** (`FIRMWARE_MODULO_KEY.PRO`) es **privado**; los binarios se distribuyen desde el repositorio **público `GEYLCA-Assets`**.
+El repositorio de **código fuente** (`FIRMWARE_MODULO_KEY.PRO`) es **privado**; los binarios se distribuyen desde el repositorio **público `XSMART KEYPRO-Assets`**.
 
 | Archivo | Para qué |
 |---|---|

@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a1628'/%3E%3Cpath d='M30 55v-6a20 20 0 0 1 40 0v6' stroke='%2300d4ff' stroke-width='7' fill='none'/%3E%3Ccircle cx='50' cy='64' r='6' fill='%2300e0a8'/%3E%3Crect x='46' y='64' width='8' height='14' fill='%2300e0a8'/%3E%3C/svg%3E">
-<title>GEYLCA Access Control</title>
+<title>XSMART KEYPRO</title>
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="lib/jsqr.min.js"></script>
@@ -729,7 +729,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
-    <h2>GEYLCA Master</h2>
+    <h2>XSMART KEYPRO Master</h2>
     <div id="loginErr" class="err"></div>
 
     <div id="passView">
@@ -764,7 +764,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 
 <div id="appContainer" style="display:none;flex-direction:column;min-height:100vh">
   <header>
-    <span class="logo">GEYLCA</span>
+    <span class="logo">XSMART KEYPRO</span>
     <span id="headerDevice" class="device-label"></span>
 <span class="spacer"></span>
     <span id="moduleBadge" class="status-tag wait">VERIFICANDO</span>
@@ -1027,7 +1027,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     <div id="tabConsole" class="tab">
       <div class="card">
         <h3>Datos en Vivo (MQTT)</h3>
-        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo GEYLCA. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo XSMART KEYPRO. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
         <div class="console-toolbar">
           <label class="console-chk"><input type="checkbox" id="consoleFollow" checked> Auto-seguir</label>
           <button class="btn small" id="btnConsoleClear">Limpiar</button>
@@ -1414,14 +1414,14 @@ function renderProgList(){
     const sel=selectedProgId===id;
     const badge=online?'<span class="status-tag success">EN LÍNEA</span>':'<span class="status-tag">OFFLINE</span>';
     const btn=online
-      ? '<button class="btn small '+(sel?"":"")+'" onclick="GEYLCA.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
+      ? '<button class="btn small '+(sel?"":"")+'" onclick="XSMART KEYPRO.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
       : '<button class="btn small" disabled>Fuera de línea</button>';
     return "<tr><td><b>"+escHtml(id)+"</b><div style=\"font-size:.72rem;opacity:.6\">"+escHtml(p?p.name:"")+"</div></td><td>"+badge+"</td><td>"+btn+"</td></tr>";
   }).join("");
   if(info)info.textContent=onlineCount+" programador(es) en línea";
 }
-window.GEYLCA=window.GEYLCA||{};
-window.GEYLCA.selectProg=function(id){
+window.XSMART KEYPRO=window.XSMART KEYPRO||{};
+window.XSMART KEYPRO.selectProg=function(id){
   selectedProgId=id;
   pendingProgKey="";
   document.getElementById("progReadBox").style.display="block";
@@ -1429,7 +1429,7 @@ window.GEYLCA.selectProg=function(id){
   if(stEl)stEl.innerHTML="Programador <b>"+escHtml(id)+"</b> seleccionado. Pulse <b>Leer Llave</b> y presente la iButton en el programador.";
   renderProgList();
 };
-window.GEYLCA.iniciarLectura=function(){
+window.XSMART KEYPRO.iniciarLectura=function(){
   if(!selectedProgId){toast("Seleccione primero un programador","error");return;}
   if(!progStatus[selectedProgId]||!progStatus[selectedProgId].online){toast("El programador no está en línea","error");return;}
   pendingProgKey="";
@@ -1488,9 +1488,9 @@ function renderSlots(){
         badgeHtml="<span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span>";
       }
       const actBtn=blocked
-        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
-        : "<button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
-      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"XSMART KEYPRO.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
+        : "<button class=\"btn small \" onclick=\"XSMART KEYPRO.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
+      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"XSMART KEYPRO.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"XSMART KEYPRO.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
     }).join("");
   }
   document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
@@ -1578,7 +1578,7 @@ function processEvent(msg){
     document.getElementById("learnWaitBox").innerHTML="<span>Código de la llave detectada:</span><div style=\"font-family:monospace;font-size:1.15rem;font-weight:bold;letter-spacing:.12em;word-break:break-all\">"+escHtml(pendingScanKey)+"</div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Slot deseado (vacío = automático)</label><input id=\"scanSlotInput\" type=\"number\" min=\"1\" max=\""+(slotTotalKnown||4000)+"\" value=\""+(pendingScanSlot!==null?pendingScanSlot:"")+"\"></div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Nº de apartamento</label><input id=\"scanAptoInput\" type=\"text\" value=\""+escHtml(d.apto||"")+"\" placeholder=\"Ej: 4B\"></div>"+
-      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"GEYLCA.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"GEYLCA.cancelScan()\">Cancelar</button></div>";
+      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"XSMART KEYPRO.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"XSMART KEYPRO.cancelScan()\">Cancelar</button></div>";
     toast("Llave escaneada — asigne slot y apto, luego confirme","info");
     return;
   }
@@ -1838,7 +1838,7 @@ function createPass(){
   saveBioSecret(v);
   errEl.style.display="none";
   document.getElementById("masterPassInput").value="";
-  toast("Clave creada. Bienvenido a GEYLCA Master.","success");
+  toast("Clave creada. Bienvenido a XSMART KEYPRO Master.","success");
   showModuleSelect();
 }
 
@@ -1878,7 +1878,7 @@ function renderModuleSelect(){
   infoEl.textContent="Seleccione el módulo a leer/operar:";
   listEl.innerHTML=masterModules.map((m,i)=>
     '<div class="module-row"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.9rem">'+escHtml(m.alias||m.deviceId)+'</div><div class="master-cell-id">'+escHtml(m.deviceId)+'</div></div>'+
-    '<button class="btn accent" onclick="GEYLCA.selectModule('+i+')">Operar</button></div>'
+    '<button class="btn accent" onclick="XSMART KEYPRO.selectModule('+i+')">Operar</button></div>'
   ).join("");
 }
 
@@ -2070,8 +2070,8 @@ function restoreSession(){
   initMasterFlow();
 }
 
-window.GEYLCA=window.GEYLCA||{};
-window.GEYLCA.confirmScan=function(){
+window.XSMART KEYPRO=window.XSMART KEYPRO||{};
+window.XSMART KEYPRO.confirmScan=function(){
   if(!canDo("confirm_key"))return;
   const extra={};
   const sEl=document.getElementById("scanSlotInput");
@@ -2086,32 +2086,32 @@ window.GEYLCA.confirmScan=function(){
   setWaiting(true);
   toast("Confirmando grabación de la llave...","info");
 };
-window.GEYLCA.cancelScan=function(){
+window.XSMART KEYPRO.cancelScan=function(){
   if(!canDo("cancel_learn"))return;
   makeMsg("cancel_learn").then(m=>publish(m));
   document.getElementById("learnWaitBox").style.display="none";
   toast("Aprendizaje cancelado","info");
 };
-window.GEYLCA.toggleSlot=function(slot){
+window.XSMART KEYPRO.toggleSlot=function(slot){
   const d=slotData[slot];if(!d)return;
   const newStatus=d.status==="suspended"?"active":"suspended";
   makeMsg("suspend_slot",{slot:slot,status:newStatus}).then(m=>publish(m));
   setWaiting(true);
 };
-window.GEYLCA.editApto=function(slot){
+window.XSMART KEYPRO.editApto=function(slot){
   const d=slotData[slot];if(!d)return;
   const val=prompt("Nº de apartamento para slot #"+slot,d.aparto||"");
   if(val===null)return;
   makeMsg("set_apto",{slot:slot,apto:val.trim()}).then(m=>publish(m));
   setWaiting(true);
 };
-window.GEYLCA.deleteSlot=function(slot){
+window.XSMART KEYPRO.deleteSlot=function(slot){
   showModal("Eliminar Slot","¿Eliminar el slot #"+slot+"? Esta acción no se puede deshacer.",()=>{
     makeMsg("clear_slot",{slot:slot}).then(m=>publish(m));
     setWaiting(true);
   },"Eliminar");
 };
-window.GEYLCA.unblockSlot=function(slot){
+window.XSMART KEYPRO.unblockSlot=function(slot){
   if(!canDo("unblock_slot"))return;
   showModal("Desbloquear Slot","¿Desbloquear el slot #"+slot+"? El admin quita la suspensión permanente y la llave vuelve a operar.",()=>{
     makeMsg("unblock_slot",{slot:slot}).then(m=>publish(m));
@@ -2144,7 +2144,7 @@ function renderBlocked(){
   const unDis=canDo("unblock_slot")?"":" disabled";
   if(tb)tb.innerHTML=bl.map(k=>{
     const d=slotData[k];
-    return "<tr><td data-label=\"Slot\"><b>"+k+"</b></td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Motivo\">"+escHtml(reasonLabel(d.blk))+"</td><td data-label=\"Fecha\">"+escHtml(formatDateTime(d.blkts))+"</td><td data-label=\"Acciones\"><button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\""+unDis+">Desbloquear</button></td></tr>";
+    return "<tr><td data-label=\"Slot\"><b>"+k+"</b></td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Motivo\">"+escHtml(reasonLabel(d.blk))+"</td><td data-label=\"Fecha\">"+escHtml(formatDateTime(d.blkts))+"</td><td data-label=\"Acciones\"><button class=\"btn small accent\" onclick=\"XSMART KEYPRO.unblockSlot("+k+")\""+unDis+">Desbloquear</button></td></tr>";
   }).join("");
 }
 function refreshBlocked(){
@@ -2192,7 +2192,7 @@ function saveNtfy(){
 function testNtfy(){
   const c=ntfyConfig();
   if(!c.topic){toast("Indique un topic","error");return;}
-  const body="Prueba GEYLCA desde el módulo "+deviceId;
+  const body="Prueba XSMART KEYPRO desde el módulo "+deviceId;
   fetch((c.url||"https://ntfy.sh").replace(/\/+$/,"")+"/"+c.topic,{method:"POST",body:new Blob([body],{type:"text/plain"})})
     .then(r=>toast(r.ok?"Prueba enviada a ntfy":"Error HTTP "+r.status,r.ok?"success":"error"))
     .catch(()=>toast("No se pudo enviar la prueba","error"));
@@ -2259,7 +2259,7 @@ function scheduleBioUnlockCheck(){
 function unlockWithBio(){
   if(!bioAvail())return;
   const nb=window.capacitorCapacitorBiometric.NativeBiometric;
-  nb.verifyIdentity({reasonTitle:"Desbloquear GEYLCA Master",reasonSubtitle:"Confirme su identidad para continuar",reasonCancel:"Cancelar"})
+  nb.verifyIdentity({reasonTitle:"Desbloquear XSMART KEYPRO Master",reasonSubtitle:"Confirme su identidad para continuar",reasonCancel:"Cancelar"})
     .then(()=>nb.getCredentials())
     .then(r=>{
       const sec=r.password;
@@ -2288,7 +2288,7 @@ function syncNtfyNative(){
     const ntf=((window.capacitorNtfy||{}).Ntfy)||((window.CapacitorNtfy||{}).Ntfy);
     if(!ntf){if(stEl)stEl.textContent="Plugin capacitor-ntfy no encontrado.";return;}
     Promise.resolve(ntf.requestNotificationPermission?ntf.requestNotificationPermission():null)
-      .then(()=>ntf.start({baseUrl:c.url,topics:[c.topic],autoStartOnBoot:true,showNotifications:true,historyLimit:50,foregroundTitle:"GEYLCA Master",foregroundText:"Escuchando avisos ntfy"}))
+      .then(()=>ntf.start({baseUrl:c.url,topics:[c.topic],autoStartOnBoot:true,showNotifications:true,historyLimit:50,foregroundTitle:"XSMART KEYPRO Master",foregroundText:"Escuchando avisos ntfy"}))
       .then(()=>{if(stEl)stEl.textContent="App suscrita a "+c.topic+" (en segundo plano).";toast("Notificaciones activadas","success")})
       .catch(e=>{if(stEl)stEl.textContent="Error: "+(e&&e.message||e);toast("No se pudo suscribir","error")});
   });
@@ -2359,16 +2359,16 @@ function renderMaster(){
       '<td>'+freeP+extraP+'</td>'+
       '<td style="max-width:220px">'+last+'</td>'+
       '<td><div class="master-actions">'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'open\')">Abrir</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'free\')">Libres</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'slots\')">Llaves</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'logs\')">Logs</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'info\')">Info</button>'+
-        '<button class="btn accent" onclick="GEYLCA.masterAct('+i+',\'ota\')">OTA</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'role\')">Rol</button>'+
-        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'reset\')">Reset</button>'+
-        '<button class="btn danger" onclick="GEYLCA.masterAct('+i+',\'wipe\')">Wipe</button>'+
-        '<button class="btn danger" title="Quitar del registro" onclick="GEYLCA.masterAct('+i+',\'remove\')">X</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'open\')">Abrir</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'free\')">Libres</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'slots\')">Llaves</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'logs\')">Logs</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'info\')">Info</button>'+
+        '<button class="btn accent" onclick="XSMART KEYPRO.masterAct('+i+',\'ota\')">OTA</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'role\')">Rol</button>'+
+        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'reset\')">Reset</button>'+
+        '<button class="btn danger" onclick="XSMART KEYPRO.masterAct('+i+',\'wipe\')">Wipe</button>'+
+        '<button class="btn danger" title="Quitar del registro" onclick="XSMART KEYPRO.masterAct('+i+',\'remove\')">X</button>'+
       '</div></td></tr>';
   }).join("");
 }
@@ -2472,9 +2472,9 @@ function masterOTA(i){
   fetchLatestRelease().then(openModal,()=>openModal(null));
 }
 function fetchLatestRelease(){
-  return fetch("https://api.github.com/repos/Gelbittar/GEYLCA-Assets/releases/latest")
+  return fetch("https://api.github.com/repos/Gelbittar/XSMART KEYPRO-Assets/releases/latest")
     .then(r=>{if(!r.ok)throw new Error("no latest");return r.json();})
-    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/GEYLCA-Assets/releases/download/"+tag+"/firmware.bin"};});
+    .then(j=>{const tag=j.tag_name;return {tag:tag,url:"https://github.com/Gelbittar/XSMART KEYPRO-Assets/releases/download/"+tag+"/firmware.bin"};});
 }
 function handleMasterMessage(devT,suffix,payload){
   if(!masterModules.find(x=>x.deviceId===devT))return;
@@ -2513,9 +2513,9 @@ function handleMasterMessage(devT,suffix,payload){
   }
   renderMaster();
 }
-window.GEYLCA.masterAct=masterAct;
-window.GEYLCA.masterAdd=masterAdd;
-window.GEYLCA.selectModule=activateModule;
+window.XSMART KEYPRO.masterAct=masterAct;
+window.XSMART KEYPRO.masterAdd=masterAdd;
+window.XSMART KEYPRO.selectModule=activateModule;
 
 function initEvents(){
   document.getElementById("btnSetPass").addEventListener("click",createPass);
@@ -2603,7 +2603,7 @@ function initEvents(){
     scanProgramadores();
     toast("Escaneo de programadores completado","info");
   });
-  document.getElementById("btnProgRead").addEventListener("click",()=>GEYLCA.iniciarLectura());
+  document.getElementById("btnProgRead").addEventListener("click",()=>XSMART KEYPRO.iniciarLectura());
   document.querySelectorAll(".subnav button").forEach(btn=>{
     btn.addEventListener("click",()=>showSlotsSub(btn.dataset.sub));
   });

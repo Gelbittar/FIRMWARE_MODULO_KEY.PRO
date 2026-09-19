@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a1628'/%3E%3Cpath d='M30 55v-6a20 20 0 0 1 40 0v6' stroke='%2300d4ff' stroke-width='7' fill='none'/%3E%3Ccircle cx='50' cy='64' r='6' fill='%2300e0a8'/%3E%3Crect x='46' y='64' width='8' height='14' fill='%2300e0a8'/%3E%3C/svg%3E">
-<title>GEYLCA Access Control</title>
+<title>XSMART KEYPRO</title>
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="lib/jsqr.min.js"></script>
@@ -743,7 +743,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
-    <h2>GEYLCA Access Control</h2>
+    <h2>XSMART KEYPRO</h2>
     <div id="loginErr" class="err"></div>
 
     <div id="wizardView">
@@ -775,7 +775,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     </div>
 
     <div id="familyView" style="display:none">
-      <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Familia de módulos GEYLCA: todos comparten el mismo PIN (admin/instalador). Seleccione un módulo para ingresar.</p>
+      <p style="font-size:.8rem;opacity:.8;margin-bottom:.8rem">Familia de módulos XSMART KEYPRO: todos comparten el mismo PIN (admin/instalador). Seleccione un módulo para ingresar.</p>
       <div id="familyList"></div>
       <button id="btnFamilyAdd" class="accent" style="margin-bottom:.4rem">+ Agregar módulo</button>
     </div>
@@ -794,7 +794,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
 
 <div id="appContainer" style="display:none;flex-direction:column;min-height:100vh">
   <header>
-    <span class="logo">GEYLCA</span>
+    <span class="logo">XSMART KEYPRO</span>
     <span id="headerDevice" class="device-label"></span>
 <span class="spacer"></span>
     <span id="moduleBadge" class="status-tag wait">VERIFICANDO</span>
@@ -957,7 +957,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     <div id="tabRoles" class="tab">
       <div class="card">
         <h3>Claves de roles</h3>
-        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Cada rol usa una clave distinta como secreto HMAC para identificarse ante el módulo. Con esta pantalla se agrega un administrador y se modifica la clave del instalador. La clave del maestro solo se cambia desde la app GEYLCA Master.</p>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Cada rol usa una clave distinta como secreto HMAC para identificarse ante el módulo. Con esta pantalla se agrega un administrador y se modifica la clave del instalador. La clave del maestro solo se cambia desde la app XSMART KEYPRO Master.</p>
         <div class="btn-row">
           <button class="btn accent" id="btnGetRoleKeys">Ver estado de claves</button>
         </div>
@@ -1002,7 +1002,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     <div id="tabConsole" class="tab">
       <div class="card">
         <h3>Datos en Vivo (MQTT)</h3>
-        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo GEYLCA. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo XSMART KEYPRO. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
         <div class="console-toolbar">
           <label class="console-chk"><input type="checkbox" id="consoleFollow" checked> Auto-seguir</label>
           <button class="btn small" id="btnConsoleClear">Limpiar</button>
@@ -1397,14 +1397,14 @@ function renderProgList(){
     const sel=selectedProgId===id;
     const badge=online?'<span class="status-tag success">EN LÍNEA</span>':'<span class="status-tag">OFFLINE</span>';
     const btn=online
-      ? '<button class="btn small '+(sel?"":"")+'" onclick="GEYLCA.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
+      ? '<button class="btn small '+(sel?"":"")+'" onclick="XSMART KEYPRO.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
       : '<button class="btn small" disabled>Fuera de línea</button>';
     return "<tr><td><b>"+escHtml(id)+"</b><div style=\"font-size:.72rem;opacity:.6\">"+escHtml(p?p.name:"")+"</div></td><td>"+badge+"</td><td>"+btn+"</td></tr>";
   }).join("");
   if(info)info.textContent=onlineCount+" programador(es) en línea";
 }
-window.GEYLCA=window.GEYLCA||{};
-window.GEYLCA.selectProg=function(id){
+window.XSMART KEYPRO=window.XSMART KEYPRO||{};
+window.XSMART KEYPRO.selectProg=function(id){
   selectedProgId=id;
   pendingProgKey="";
   document.getElementById("progReadBox").style.display="block";
@@ -1412,7 +1412,7 @@ window.GEYLCA.selectProg=function(id){
   if(stEl)stEl.innerHTML="Programador <b>"+escHtml(id)+"</b> seleccionado. Pulse <b>Leer Llave</b> y presente la iButton en el programador.";
   renderProgList();
 };
-window.GEYLCA.iniciarLectura=function(){
+window.XSMART KEYPRO.iniciarLectura=function(){
   if(!selectedProgId){toast("Seleccione primero un programador","error");return;}
   if(!progStatus[selectedProgId]||!progStatus[selectedProgId].online){toast("El programador no está en línea","error");return;}
   pendingProgKey="";
@@ -1471,9 +1471,9 @@ function renderSlots(){
         badgeHtml="<span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span>";
       }
       const actBtn=blocked
-        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
-        : "<button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
-      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"XSMART KEYPRO.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
+        : "<button class=\"btn small \" onclick=\"XSMART KEYPRO.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
+      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"XSMART KEYPRO.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"XSMART KEYPRO.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
     }).join("");
   }
   document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
@@ -1555,7 +1555,7 @@ function processEvent(msg){
     document.getElementById("learnWaitBox").innerHTML="<span>Código de la llave detectada:</span><div style=\"font-family:monospace;font-size:1.15rem;font-weight:bold;letter-spacing:.12em;word-break:break-all\">"+escHtml(pendingScanKey)+"</div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Slot deseado (vacío = automático)</label><input id=\"scanSlotInput\" type=\"number\" min=\"1\" max=\""+(slotTotalKnown||4000)+"\" value=\""+(pendingScanSlot!==null?pendingScanSlot:"")+"\"></div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Nº de apartamento</label><input id=\"scanAptoInput\" type=\"text\" value=\""+escHtml(d.apto||"")+"\" placeholder=\"Ej: 4B\"></div>"+
-      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"GEYLCA.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"GEYLCA.cancelScan()\">Cancelar</button></div>";
+      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"XSMART KEYPRO.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"XSMART KEYPRO.cancelScan()\">Cancelar</button></div>";
     toast("Llave escaneada — asigne slot y apto, luego confirme","info");
     return;
   }
@@ -1803,9 +1803,9 @@ function showModuleSelect(){
   }else{
     listEl.innerHTML=familyModules.map((m,i)=>
       '<div class="family-row"><div class="grow"><div class="fam-id">'+escHtml(m.alias||m.deviceId)+'</div><div class="fam-sub">'+escHtml(m.deviceId)+'</div></div>'+
-      '<button class="btn accent" onclick="GEYLCA.enterFamilyModule('+i+')">Entrar</button>'+
-      '<button class="btn" title="Asignar PIN de instalador" onclick="GEYLCA.familySetInstaller('+i+')">PIN</button>'+
-      '<button class="btn danger" title="Quitar de la familia" onclick="GEYLCA.familyRemove('+i+')">X</button></div>'
+      '<button class="btn accent" onclick="XSMART KEYPRO.enterFamilyModule('+i+')">Entrar</button>'+
+      '<button class="btn" title="Asignar PIN de instalador" onclick="XSMART KEYPRO.familySetInstaller('+i+')">PIN</button>'+
+      '<button class="btn danger" title="Quitar de la familia" onclick="XSMART KEYPRO.familyRemove('+i+')">X</button></div>'
     ).join("");
   }
   setLoginView("family");
@@ -2057,7 +2057,7 @@ function handleRoleVerified(d){
   if(pendingRoleVerify&&pendingRoleVerify.timer)clearTimeout(pendingRoleVerify.timer);
   pendingRoleVerify=null;
   if(d.role==="master"){
-    toast("Esa clave pertenece al rol MAESTRO. Úsela en la app GEYLCA Master.","error");
+    toast("Esa clave pertenece al rol MAESTRO. Úsela en la app XSMART KEYPRO Master.","error");
     goToLogin();
     return;
   }
@@ -2216,11 +2216,11 @@ function restoreSession(){
   initAppFlow();
 }
 
-window.GEYLCA=window.GEYLCA||{};
-window.GEYLCA.enterFamilyModule=enterFamilyModule;
-window.GEYLCA.familySetInstaller=familySetInstaller;
-window.GEYLCA.familyRemove=familyRemove;
-window.GEYLCA.confirmScan=function(){
+window.XSMART KEYPRO=window.XSMART KEYPRO||{};
+window.XSMART KEYPRO.enterFamilyModule=enterFamilyModule;
+window.XSMART KEYPRO.familySetInstaller=familySetInstaller;
+window.XSMART KEYPRO.familyRemove=familyRemove;
+window.XSMART KEYPRO.confirmScan=function(){
   if(!canDo("confirm_key"))return;
   const extra={};
   const sEl=document.getElementById("scanSlotInput");
@@ -2235,33 +2235,33 @@ window.GEYLCA.confirmScan=function(){
   setWaiting(true);
   toast("Confirmando grabación de la llave...","info");
 };
-window.GEYLCA.cancelScan=function(){
+window.XSMART KEYPRO.cancelScan=function(){
   if(!canDo("cancel_learn"))return;
   makeMsg("cancel_learn").then(m=>publish(m));
   document.getElementById("learnWaitBox").style.display="none";
   toast("Aprendizaje cancelado","info");
 };
-window.GEYLCA.toggleSlot=function(slot){
+window.XSMART KEYPRO.toggleSlot=function(slot){
   const d=slotData[slot];if(!d)return;
   const newStatus=d.status==="suspended"?"active":"suspended";
   makeMsg("suspend_slot",{slot:slot,status:newStatus}).then(m=>publish(m));
   setWaiting(true);
 };
-window.GEYLCA.unblockSlot=function(slot){
+window.XSMART KEYPRO.unblockSlot=function(slot){
   if(!canDo("unblock_slot"))return;
   showModal("Desbloquear Slot","¿Desbloquear el slot #"+slot+"? Se quita el bloqueo permanente y la llave vuelve a operar.",()=>{
     makeMsg("unblock_slot",{slot:slot}).then(m=>publish(m));
     setWaiting(true);
   },"Desbloquear");
 };
-window.GEYLCA.editApto=function(slot){
+window.XSMART KEYPRO.editApto=function(slot){
   const d=slotData[slot];if(!d)return;
   const val=prompt("Nº de apartamento para slot #"+slot,d.aparto||"");
   if(val===null)return;
   makeMsg("set_apto",{slot:slot,apto:val.trim()}).then(m=>publish(m));
   setWaiting(true);
 };
-window.GEYLCA.deleteSlot=function(slot){
+window.XSMART KEYPRO.deleteSlot=function(slot){
   showModal("Eliminar Slot","¿Eliminar el slot #"+slot+"? Esta acción no se puede deshacer.",()=>{
     makeMsg("clear_slot",{slot:slot}).then(m=>publish(m));
     setWaiting(true);
@@ -2360,7 +2360,7 @@ function initEvents(){
     scanProgramadores();
     toast("Escaneo de programadores completado","info");
   });
-  document.getElementById("btnProgRead").addEventListener("click",()=>GEYLCA.iniciarLectura());
+  document.getElementById("btnProgRead").addEventListener("click",()=>XSMART KEYPRO.iniciarLectura());
   document.querySelectorAll(".subnav button").forEach(btn=>{
     btn.addEventListener("click",()=>showSlotsSub(btn.dataset.sub));
   });
