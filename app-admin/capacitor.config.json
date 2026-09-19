@@ -1,0 +1,8 @@
+{
+  "appId": "com.geylca.admin",
+  "appName": "GEYLCA Admin",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  }
+}

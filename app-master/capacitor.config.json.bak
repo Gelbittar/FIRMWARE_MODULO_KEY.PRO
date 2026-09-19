@@ -1,0 +1,8 @@
+{
+  "appId": "com.geylca.master",
+  "appName": "GEYLCA Master",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  }
+}

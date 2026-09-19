@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Icon Generator</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background: #0a0f1a; color: #e8edf5; }
+  .container { max-width: 800px; margin: 0 auto; }
+  .icon-set { margin-bottom: 40px; }
+  .icon-set h2 { color: #00d4ff; border-bottom: 1px solid #233048; padding-bottom: 10px; }
+  .icons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; }
+  .icon-item { background: #151d30; border: 1px solid #233048; border-radius: 16px; padding: 16px; text-align: center; }
+  .icon-item canvas { border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .icon-item label { display: block; margin-top: 8px; font-size: 14px; color: #8b9cb3; }
+  button { background: #00d4ff; color: #0a0f1a; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; margin: 8px; }
+  button:hover { background: #00a8cc; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { margin-top: 20px; padding: 16px; background: #151d30; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎨 Generador de Iconos GEYLCA</h1>
+  <p>Haz clic en "Generar todos" para crear los PNG a partir de los SVG. Luego haz clic derecho en cada canvas → "Guardar imagen como..." para guardar los PNG en <code>web/assets/icons/</code></p>
+  <button id="generateAll">Generar todos los iconos</button>
+  <button id="downloadAll" disabled>Descargar ZIP</button>
+
+  <div id="status"></div>
+
+  <div class="icon-set">
+    <h2>Operator (Azul/Cian)</h2>
+    <div class="icons-grid" id="operatorIcons"></div>
+  </div>
+
+  <div class="icon-set">
+    <h2>Admin (Púrpura/Azul)</h2>
+    <div class="icons-grid" id="adminIcons"></div>
+  </div>
+
+  <div class="icon-set">
+    <h2>Installer (Verde/Cian)</h2>
+    <div class="icons-grid" id="installerIcons"></div>
+  </div>
+
+  <div class="icon-set">
+    <h2>Master (Rosa/Magenta)</h2>
+    <div class="icons-grid" id="masterIcons"></div>
+  </div>
+</div>
+
+<script>
+const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+const apps = [
+  { id: 'operator', name: 'Operator', color: '#00d4ff', accent: '#00e0a8', svgUrl: 'assets/icons/operator.svg' },
+  { id: 'admin', name: 'Admin', color: '#7c9cff', accent: '#a8c0ff', svgUrl: 'assets/icons/admin.svg' },
+  { id: 'installer', name: 'Installer', color: '#00e0a8', accent: '#00ffcc', svgUrl: 'assets/icons/installer.svg' },
+  { id: 'master', name: 'Master', color: '#ff6b9d', accent: '#ff9ec7', svgUrl: 'assets/icons/master.svg' },
+];
+
+async function loadSVG(url) {
+  const resp = await fetch(url);
+  return resp.text();
+}
+
+function createIconCanvas(svgText, size, app) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const img = new Image();
+  img.src = 'data:image/svg+xml;base64,' + btoa(svgText);
+
+  return new Promise(resolve => {
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, size, size);
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      ctx.fillStyle = '#0a0f1a';
+      ctx.fillRect(0, 0, size, size);
+      resolve(canvas);
+    };
+  });
+}
+
+async function generateIcons() {
+  const status = document.getElementById('status');
+  status.textContent = 'Cargando SVGs...';
+
+  const svgs = {};
+  for (const app of apps) {
+    try {
+      svgs[app.id] = await loadSVG(app.svgUrl);
+    } catch (e) {
+      console.error('Error loading SVG for', app.id, e);
+      svgs[app.id] = '';
+    }
+  }
+
+  for (const app of apps) {
+    const container = document.getElementById(app.id + 'Icons');
+    container.innerHTML = '';
+    status.textContent = `Generando iconos para ${app.name}...`;
+
+    for (const size of sizes) {
+      const canvas = await createIconCanvas(svgs[app.id], size, app);
+      const item = document.createElement('div');
+      item.className = 'icon-item';
+      item.innerHTML = `<label>${app.name} ${size}×${size}</label>`;
+      item.insertBefore(canvas, item.firstChild);
+      container.appendChild(item);
+    }
+  }
+
+  status.textContent = '¡Iconos generados! Haz clic derecho en cada canvas → "Guardar imagen como..." para guardar como PNG.';
+  document.getElementById('downloadAll').disabled = false;
+}
+
+document.getElementById('generateAll').addEventListener('click', generateIcons);
+
+document.getElementById('downloadAll').addEventListener('click', async () => {
+  const JSZip = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+  const zip = new JSZip.default();
+
+  for (const app of apps) {
+    const folder = zip.folder(app.id);
+    for (const size of sizes) {
+      const canvas = document.querySelector(`#${app.id}Icons canvas[width="${size}"]`);
+      if (canvas) {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        folder.file(`${app.id}-${size}.png`, blob);
+      }
+    }
+  }
+
+  const content = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'geylca-icons.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
-  "name": "geylca-master-app",
+  "name": "geylca-installer-app",
   "version": "1.0.0",
-  "description": "GEYLCA Consola Maestra - operacion multi-modulo (Capacitor)",
+  "description": "GEYLCA Installer - Gestión multi-residencia y programación de llaves (Capacitor)",
   "license": "UNLICENSED",
   "scripts": {
     "sync": "cap sync",
@@ -12,8 +12,7 @@
     "@capacitor/android": "^8.0.0",
     "@capacitor/camera": "^8.0.0",
     "@capacitor/core": "^8.0.0",
-    "@capgo/capacitor-native-biometric": "^8.6.10",
-    "capacitor-ntfy": "github:coloz/capacitor-ntfy"
+    "@capgo/capacitor-native-biometric": "^8.6.10"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.0.0"

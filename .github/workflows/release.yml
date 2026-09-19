@@ -30,7 +30,7 @@ jobs:
           retention-days: 3
 
   apk-operator:
-    name: Build APK operador
+    name: Build APK Operator
     runs-on: ubuntu-latest
     needs: firmware
     steps:
@@ -42,8 +42,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Prepare web assets
-        run: mkdir -p app/web && cp web/index.html app/web/index.html && cp -r web/lib app/web/lib
+      - name: Prepare web assets (Operator)
+        run: |
+          mkdir -p app/web
+          cp web/operator.html app/web/index.html
+          cp -r web/css app/web/css
+          cp -r web/js app/web/js
+          cp -r web/lib app/web/lib
+          cp -r web/assets app/web/assets
+          cp web/manifest.json app/web/manifest.json
       - name: Install app deps
         working-directory: app
         run: npm install
@@ -59,15 +66,15 @@ jobs:
         working-directory: app/android
         run: ./gradlew assembleDebug
       - name: Prepare artifact
-        run: cp app/android/app/build/outputs/apk/debug/app-debug.apk app.apk
+        run: cp app/android/app/build/outputs/apk/debug/app-debug.apk operator.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: apk
-          path: app.apk
+          name: apk-operator
+          path: operator.apk
           retention-days: 3
 
-  apk-master:
-    name: Build APK consola maestra
+  apk-admin:
+    name: Build APK Admin
     runs-on: ubuntu-latest
     needs: firmware
     steps:
@@ -79,8 +86,103 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Prepare web assets
-        run: mkdir -p app-master/web && cp web/master.html app-master/web/index.html && cp -r web/lib app-master/web/lib
+      - name: Prepare web assets (Admin)
+        run: |
+          mkdir -p app-admin/web
+          cp web/admin.html app-admin/web/index.html
+          cp -r web/css app-admin/web/css
+          cp -r web/js app-admin/web/js
+          cp -r web/lib app-admin/web/lib
+          cp -r web/assets app-admin/web/assets
+          cp web/manifest.json app-admin/web/manifest.json
+      - name: Install app deps
+        working-directory: app-admin
+        run: npm install
+      - name: Add Android platform
+        working-directory: app-admin
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: app-admin/android
+        run: ./gradlew assembleDebug
+      - name: Prepare artifact
+        run: cp app-admin/android/app/build/outputs/apk/debug/app-debug.apk admin.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-admin
+          path: admin.apk
+          retention-days: 3
+
+  apk-installer:
+    name: Build APK Installer
+    runs-on: ubuntu-latest
+    needs: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Prepare web assets (Installer)
+        run: |
+          mkdir -p app-installer/web
+          cp web/installer.html app-installer/web/index.html
+          cp -r web/css app-installer/web/css
+          cp -r web/js app-installer/web/js
+          cp -r web/lib app-installer/web/lib
+          cp -r web/assets app-installer/web/assets
+          cp web/manifest.json app-installer/web/manifest.json
+      - name: Install app deps
+        working-directory: app-installer
+        run: npm install
+      - name: Add Android platform
+        working-directory: app-installer
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: app-installer/android
+        run: ./gradlew assembleDebug
+      - name: Prepare artifact
+        run: cp app-installer/android/app/build/outputs/apk/debug/app-debug.apk installer.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-installer
+          path: installer.apk
+          retention-days: 3
+
+  apk-master:
+    name: Build APK Master
+    runs-on: ubuntu-latest
+    needs: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Prepare web assets (Master)
+        run: |
+          mkdir -p app-master/web
+          cp web/master.html app-master/web/index.html
+          cp -r web/css app-master/web/css
+          cp -r web/js app-master/web/js
+          cp -r web/lib app-master/web/lib
+          cp -r web/assets app-master/web/assets
+          cp web/manifest.json app-master/web/manifest.json
       - name: Install app deps
         working-directory: app-master
         run: npm install
@@ -99,14 +201,14 @@ jobs:
         run: cp app-master/android/app/build/outputs/apk/debug/app-debug.apk master.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: master-apk
+          name: apk-master
           path: master.apk
           retention-days: 3
 
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [firmware, apk-operator, apk-master]
+    needs: [firmware, apk-operator, apk-admin, apk-installer, apk-master]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -114,11 +216,19 @@ jobs:
           path: .
       - uses: actions/download-artifact@v4
         with:
-          name: apk
+          name: apk-operator
           path: .
       - uses: actions/download-artifact@v4
         with:
-          name: master-apk
+          name: apk-admin
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-installer
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-master
           path: .
       - name: List assets
         run: ls -la
@@ -126,7 +236,9 @@ jobs:
         with:
           files: |
             firmware.bin
-            app.apk
+            operator.apk
+            admin.apk
+            installer.apk
             master.apk
           generate_release_notes: true
       - name: Publish assets to GEYLCA-Assets (publico)
@@ -150,7 +262,7 @@ jobs:
           else
             echo "Release ya existia (id=$ID, tag=$TAG)"
           fi
-          for F in firmware.bin app.apk master.apk; do
+          for F in firmware.bin operator.apk admin.apk installer.apk master.apk; do
             curl -s -X POST -H "$AUTH" -H "Content-Type: application/octet-stream" \
               --data-binary "@$F" \
               "https://uploads.github.com/repos/Gelbittar/GEYLCA-Assets/releases/$ID/assets?name=$F" >/dev/null || true

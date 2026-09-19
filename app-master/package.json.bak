@@ -1,6 +1,6 @@
 {
   "name": "geylca-master-app",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "GEYLCA Consola Maestra - operacion multi-modulo (Capacitor)",
   "license": "UNLICENSED",
   "scripts": {

@@ -14,7 +14,6 @@
 #include <Update.h>
 #include <HTTPClient.h>
 #include <esp_efuse.h>
-#include "drivers/eeprom.h"
 
 #define PIN_SDA      25
 #define PIN_SCL      26
@@ -122,7 +121,6 @@ const unsigned long PAIRING_WINDOW = 600000;
 #define RATE_LIMIT_MAX     10
 #define RATE_LIMIT_WINDOW  60000
 #define RATE_LIMIT_BLOCK   300000
-#include "mqtt/security.h"
 struct RateLimitEntry {
     unsigned long windowStart;
     int failCount;
@@ -144,12 +142,96 @@ String getTopic(const String& subtopic) {
     return "geylca/" + deviceId + "/" + subtopic;
 }
 
+String calcularHMAC(String payload, String secret) {
+    byte hmacResult[32];
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+    mbedtls_md_hmac_starts(&ctx, (const unsigned char*)secret.c_str(), secret.length());
+    mbedtls_md_hmac_update(&ctx, (const unsigned char*)payload.c_str(), payload.length());
+    mbedtls_md_hmac_finish(&ctx, hmacResult);
+    mbedtls_md_free(&ctx);
 
+    String tokenHex = "";
+    for (int i = 0; i < 32; i++) {
+        char buf[3];
+        sprintf(buf, "%02x", hmacResult[i]);
+        tokenHex += buf;
+    }
+    return tokenHex;
+}
 
+bool checkRateLimit(String clientId) {
+    unsigned long now = millis();
+    for (int i = 0; i < RATE_LIMIT_MAX; i++) {
+        if (rateLimitEntries[i].windowStart == 0) continue;
+        if (clientId.length() > 0) {
+            if (now < rateLimitEntries[i].blockedUntil) return false;
+        }
+    }
+    for (int i = 0; i < RATE_LIMIT_MAX; i++) {
+        if (rateLimitEntries[i].windowStart == 0 ||
+            (now - rateLimitEntries[i].windowStart) > RATE_LIMIT_WINDOW) {
+            rateLimitEntries[i].windowStart = now;
+            rateLimitEntries[i].failCount++;
+            if (rateLimitEntries[i].failCount >= RATE_LIMIT_MAX) {
+                rateLimitEntries[i].blockedUntil = now + RATE_LIMIT_BLOCK;
+                rateLimitEntries[i].failCount = 0;
+                return false;
+            }
+            return true;
+        }
+    }
+    return true;
+}
 
+void resetRateLimit() {
+    for (int i = 0; i < RATE_LIMIT_MAX; i++) {
+        rateLimitEntries[i].failCount = 0;
+        rateLimitEntries[i].blockedUntil = 0;
+    }
+}
 
+int roleRank(String role) {
+    if (role == "master") return 3;
+    if (role == "installer") return 2;
+    return 1; // admin
+}
 
+bool hasRolePermission(String requiredRole, String userRole) {
+    return roleRank(userRole) >= roleRank(requiredRole);
+}
+
+void writeEEPROM(unsigned int eeaddress, byte *data, int length) {
+    Wire.beginTransmission(EEPROM_ADDR);
+    Wire.write((int)(eeaddress >> 8));
+    Wire.write((int)(eeaddress & 0xFF));
+    for (int i = 0; i < length; i++) {
+        Wire.write(data[i]);
+    }
+    Wire.endTransmission();
+    delay(5);
+}
+
+void readEEPROM(unsigned int eeaddress, byte *buffer, int length) {
+    int done = 0;
+    while (done < length) {
+        int n = length - done;
+        if (n > 64) n = 64;
+        Wire.beginTransmission(EEPROM_ADDR);
+        Wire.write((int)((eeaddress + done) >> 8));
+        Wire.write((int)((eeaddress + done) & 0xFF));
+        Wire.endTransmission();
+        Wire.requestFrom((uint8_t)EEPROM_ADDR, (uint8_t)n);
+        for (int i = 0; i < n; i++) {
+            if (Wire.available()) buffer[done + i] = Wire.read();
+        }
+        done += n;
+        delay(2);
+    }
+}
 
 // ---------------------------------------------------------------
 // Anti-clon de llaves / sensor de puerta / buzzer / ntfy
@@ -702,6 +784,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Invalid security token\"}");
             return;
         }
+        resetRateLimit();
     }
 
     if (action == "open") {
@@ -1113,213 +1196,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         writeLog(6, 0, 1);
         mqttClient.publish(getTopic("events").c_str(), "{\"message\":\"Factory reset executed\"}");
         ocClearAll();
-    }
-    else if (action == "backup_config") {
-        if (!hasRolePermission("installer", role)) {
-            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"Insufficient permissions\"}");
-            return;
-        }
-        JsonDocument backupDoc;
-        backupDoc["version"] = FIRMWARE_VERSION;
-        backupDoc["device_id"] = deviceId;
-        backupDoc["timestamp"] = (uint32_t)time(nullptr);
-        backupDoc["security_mode"] = securityMode;
-        backupDoc["relay_time"] = relayTimeDefault / 1000;
-        backupDoc["max_slots"] = MAX_SLOTS;
-        backupDoc["family_filter"] = famFilter;
-        backupDoc["rewrite_probe"] = rewriteProbe;
-        backupDoc["door_enabled"] = doorEnabled;
-        backupDoc["door_timeout"] = doorTimeoutMs / 1000;
-        backupDoc["door_nc"] = doorClosedIsLow;
-        backupDoc["buzzer_enabled"] = buzzerEnabled;
-        backupDoc["buzzer_pre"] = buzzerPreMs / 1000;
-        backupDoc["ntfy_url"] = ntfyUrl;
-        backupDoc["ntfy_topic"] = ntfyTopic;
-
-        preferences.begin("geylca_apt", true);
-        backupDoc["admin_key"] = preferences.getString("key_admin", "");
-        backupDoc["installer_key"] = preferences.getString("key_installer", "");
-        preferences.end();
-
-        JsonArray slotsArray = backupDoc["slots"].to<JsonArray>();
-        ocEnsureBuilt();
-        for (int slot = 1; slot <= MAX_SLOTS; slot++) {
-            if (!ocIsOccupied(slot)) continue;
-            byte keyBytes[8] = {0};
-            readEEPROM(slotAddr(slot), keyBytes, slotBytes());
-            String keyHex = "";
-            for (int b = 0; b < slotBytes(); b++) {
-                if (keyBytes[b] < 16) keyHex += "0";
-                keyHex += String(keyBytes[b], HEX);
-            }
-            keyHex.toUpperCase();
-            String apto = preferences.getString(("s_" + String(slot)).c_str(), "");
-            bool sus = preferences.getBool(("sus_" + String(slot)).c_str(), false);
-            String blk = preferences.getString(("blk_" + String(slot)).c_str(), "");
-            long blkts = preferences.getLong(("blkts_" + String(slot)).c_str(), 0);
-            JsonObject slotObj = slotsArray.add<JsonObject>();
-            slotObj["slot"] = slot;
-            slotObj["key"] = keyHex;
-            slotObj["apto"] = apto;
-            slotObj["suspended"] = sus;
-            slotObj["blocked_reason"] = blk;
-            slotObj["blocked_ts"] = blkts;
-        }
-        preferences.end();
-
-        String output;
-        serializeJson(backupDoc, output);
-        mqttClient.publish(getTopic("backup_resp").c_str(), output.c_str());
-    }
-    else if (action == "restore_config" && role == "master") {
-        JsonArray slotsArray = doc["slots"].as<JsonArray>();
-        if (slotsArray.isNull()) {
-            mqttClient.publish(getTopic("events").c_str(), "{\"status\":\"DENIED\",\"message\":\"No slots data in backup\"}");
-            return;
-        }
-
-        int restoredCount = 0;
-        byte emptyBytes[8] = {0x00};
-        unsigned int totalBytes = (unsigned int)MAX_SLOTS * 8;
-        for (unsigned int addr = 0; addr < totalBytes; addr += 32) {
-            writeEEPROM(addr, emptyBytes, 32);
-        }
-        preferences.begin("geylca_apt", false);
-        for (int slot = 1; slot <= MAX_SLOTS; slot++) {
-            preferences.remove(("s_" + String(slot)).c_str());
-            if (preferences.isKey(("sus_" + String(slot)).c_str())) preferences.remove(("sus_" + String(slot)).c_str());
-            if (preferences.isKey(("blk_" + String(slot)).c_str())) preferences.remove(("blk_" + String(slot)).c_str());
-            if (preferences.isKey(("blkts_" + String(slot)).c_str())) preferences.remove(("blkts_" + String(slot)).c_str());
-        }
-        preferences.end();
-        ocClearAll();
-
-        for (JsonObject slotObj : slotsArray) {
-            int slot = slotObj["slot"].as<int>();
-            String keyHex = slotObj["key"].as<String>();
-            String apto = slotObj["apto"].as<String>();
-            bool sus = slotObj["suspended"] | false;
-            String blk = slotObj["blocked_reason"].as<String>();
-            long blkts = slotObj["blocked_ts"] | 0;
-
-            if (slot < 1 || slot > MAX_SLOTS) continue;
-            int requiredLen = sovicaEnabled() ? 16 : (securityMode * 2);
-            if (keyHex.length() < requiredLen) continue;
-
-            byte keyBytes[8] = {0};
-            hexToBytes(keyHex, keyBytes, 8);
-            if (sovicaEnabled()) {
-                writeFullRomToSlot(slot, keyBytes);
-            } else {
-                writeEEPROM(slotAddr(slot), keyBytes, securityMode);
-            }
-            ocSetBit(slot, true);
-            preferences.begin("geylca_apt", false);
-            preferences.putString(("s_" + String(slot)).c_str(), apto);
-            if (sus) preferences.putBool(("sus_" + String(slot)).c_str(), true);
-            if (blk.length() > 0) {
-                preferences.putString(("blk_" + String(slot)).c_str(), blk);
-                preferences.putLong(("blkts_" + String(slot)).c_str(), blkts);
-            }
-            preferences.end();
-            writeLog(2, slot, 1);
-            restoredCount++;
-        }
-
-        if (doc["config"].is<JsonObject>()) {
-            JsonObject cfg = doc["config"].as<JsonObject>();
-            if (cfg["security_mode"].is<int>()) {
-                int mode = cfg["security_mode"].as<int>();
-                if (mode == SECMODE_SOVICA || mode == 4 || mode == 8) {
-                    applySecurityMode(mode);
-                    preferences.begin("geylca_apt", false);
-                    preferences.putInt("secMode", securityMode);
-                    preferences.end();
-                }
-            }
-            if (cfg["relay_time"].is<int>()) {
-                relayTimeDefault = cfg["relay_time"].as<int>() * 1000;
-                preferences.begin("geylca_apt", false);
-                preferences.putInt("relayTime", relayTimeDefault);
-                preferences.end();
-            }
-            if (cfg["family_filter"].is<int>()) {
-                famFilter = cfg["family_filter"].as<int>();
-                preferences.begin("geylca_apt", false);
-                preferences.putInt("famFilter", famFilter);
-                preferences.end();
-            }
-            if (cfg["rewrite_probe"].is<bool>()) {
-                rewriteProbe = cfg["rewrite_probe"].as<bool>();
-                preferences.begin("geylca_apt", false);
-                preferences.putBool("rewriteProbe", rewriteProbe);
-                preferences.end();
-            }
-            if (cfg["door_enabled"].is<bool>()) {
-                doorEnabled = cfg["door_enabled"].as<bool>();
-                preferences.begin("geylca_apt", false);
-                preferences.putBool("doorEnabled", doorEnabled);
-                preferences.end();
-            }
-            if (cfg["door_timeout"].is<int>()) {
-                doorTimeoutMs = (unsigned long)cfg["door_timeout"].as<int>() * 1000UL;
-                preferences.begin("geylca_apt", false);
-                preferences.putLong("doorTimeout", (long)doorTimeoutMs);
-                preferences.end();
-            }
-            if (cfg["door_nc"].is<bool>()) {
-                doorClosedIsLow = cfg["door_nc"].as<bool>();
-                preferences.begin("geylca_apt", false);
-                preferences.putBool("doorClosedIsLow", doorClosedIsLow);
-                preferences.end();
-            }
-            if (cfg["buzzer_enabled"].is<bool>()) {
-                buzzerEnabled = cfg["buzzer_enabled"].as<bool>();
-                preferences.begin("geylca_apt", false);
-                preferences.putBool("buzzerEnabled", buzzerEnabled);
-                preferences.end();
-            }
-            if (cfg["buzzer_pre"].is<int>()) {
-                buzzerPreMs = (unsigned long)cfg["buzzer_pre"].as<int>() * 1000UL;
-                if (buzzerPreMs > doorTimeoutMs) buzzerPreMs = doorTimeoutMs;
-                preferences.begin("geylca_apt", false);
-                preferences.putLong("buzzerPre", (long)buzzerPreMs);
-                preferences.end();
-            }
-            if (cfg["ntfy_url"].is<String>()) {
-                ntfyUrl = cfg["ntfy_url"].as<String>();
-                preferences.begin("geylca_apt", false);
-                preferences.putString("ntfyUrl", ntfyUrl);
-                preferences.end();
-            }
-            if (cfg["ntfy_topic"].is<String>()) {
-                ntfyTopic = cfg["ntfy_topic"].as<String>();
-                preferences.begin("geylca_apt", false);
-                preferences.putString("ntfyTopic", ntfyTopic);
-                preferences.end();
-            }
-            if (cfg["admin_key"].is<String>()) {
-                String newAdminKey = cfg["admin_key"].as<String>();
-                if (isPin6(newAdminKey)) {
-                    adminKey = newAdminKey;
-                    preferences.begin("geylca_sec", false);
-                    preferences.putString("key_admin", adminKey);
-                    preferences.end();
-                }
-            }
-            if (cfg["installer_key"].is<String>()) {
-                String newInstallerKey = cfg["installer_key"].as<String>();
-                if (isPin6(newInstallerKey)) {
-                    installerKey = newInstallerKey;
-                    preferences.begin("geylca_sec", false);
-                    preferences.putString("key_installer", installerKey);
-                    preferences.end();
-                }
-            }
-        }
-
-        String resp = "{\"status\":\"OK\",\"message\":\"Restore completed\",\"restored_slots\":" + String(restoredCount) + "}";
-        mqttClient.publish(getTopic("status_resp").c_str(), resp.c_str());
     }
     else if (action == "get_logs") {
         if (!hasRolePermission("installer", role)) {

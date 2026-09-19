@@ -1,0 +1,8 @@
+{
+  "appId": "com.geylca.installer",
+  "appName": "GEYLCA Installer",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  }
+}
