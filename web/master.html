@@ -2,43 +2,49 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0a1628">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#ffffff">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a1628'/%3E%3Cpath d='M30 55v-6a20 20 0 0 1 40 0v6' stroke='%2300d4ff' stroke-width='7' fill='none'/%3E%3Ccircle cx='50' cy='64' r='6' fill='%2300e0a8'/%3E%3Crect x='46' y='64' width='8' height='14' fill='%2300e0a8'/%3E%3C/svg%3E">
-<title>XSMART KEYPRO</title>
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23005ab4'/%3E%3Cpath d='M30 55v-6a20 20 0 0 1 40 0v6' stroke='%23ffffff' stroke-width='7' fill='none'/%3E%3Ccircle cx='50' cy='64' r='6' fill='%23e7f1fe'/%3E%3Crect x='46' y='64' width='8' height='14' fill='%23e7f1fe'/%3E%3C/svg%3E">
+<title>GEYLCA Master | Consola de Acceso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="lib/jsqr.min.js"></script>
 <style>*{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a1628;
-  --bg2:#0e1c30;
-  --card:#131f33;
-  --card2:#182740;
-  --accent:#00d4ff;
-  --accent2:#00e0a8;
-  --accent-grad:linear-gradient(135deg,#00d4ff,#00e0a8);
-  --text:#d6e4f0;
-  --text2:#8fa8c0;
-  --warn:#ffb347;
-  --danger:#ff4d6a;
-  --success:#00e0a8;
-  --border:#1e3348;
-  --input-bg:#0a1628;
-  --shadow:0 2px 12px rgba(0,0,0,.3);
-  --shadow-lg:0 8px 32px rgba(0,0,0,.4);
-  --radius:14px;
+  --bg:#f9f9ff;
+  --bg2:#f1f3fc;
+  --card:#ffffff;
+  --card2:#ffffff;
+  --accent:#005ab4;
+  --accent-dark:#00458d;
+  --accent2:#465f88;
+  --accent-grad:linear-gradient(135deg,#005ab4,#0a73e0);
+  --text:#181c22;
+  --text2:#586274;
+  --warn:#f59e0b;
+  --danger:#ba1a1a;
+  --success:#10b981;
+  --border:#e0e2eb;
+  --border-light:#ebedf7;
+  --input-bg:#ffffff;
+  --shadow:0 1px 3px 0 rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.06);
+  --shadow-lg:0 10px 25px -5px rgba(0,90,180,.12), 0 8px 10px -6px rgba(0,0,0,.04);
+  --radius:12px;
   --radius-sm:8px;
-  --tap:48px;
-  --nav-h:64px;
-  --header-h:52px;
+  --tap:44px;
+  --nav-h:60px;
+  --header-h:56px;
 }
 body{
-  font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-  background:linear-gradient(180deg,#0a1628 0%,#0e1c30 100%);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  background-color:var(--bg);
   color:var(--text);
   min-height:100vh;
   min-height:100dvh;
@@ -49,16 +55,18 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 a{color:var(--accent);text-decoration:none}
-::-webkit-scrollbar{width:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:9999px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 
 /* Header */
 header{
-  background:rgba(19,31,51,.92);
+  background:rgba(255,255,255,.96);
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
+  box-shadow:0 1px 2px rgba(0,0,0,.03);
   padding:0 1rem;
   display:flex;
   align-items:center;
@@ -70,13 +78,10 @@ header{
   top:0;
 }
 header .logo{
-  font-size:1rem;
-  font-weight:800;
-  background:var(--accent-grad);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text;
-  letter-spacing:2px;
+  font-size:1.05rem;
+  font-weight:700;
+  color:var(--accent);
+  letter-spacing:1px;
   white-space:nowrap;
 }
 header .device-label{
@@ -99,25 +104,27 @@ header .device-label{
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 header .spacer{flex:1}
 #btnDisconnect{
-  background:transparent;
+  background:#fff;
   border:1px solid var(--border);
   color:var(--text2);
   padding:.3rem .6rem;
   border-radius:var(--radius-sm);
   cursor:pointer;
   font-size:.72rem;
+  font-weight:500;
   transition:.2s;
   min-height:32px;
 }
-#btnDisconnect:hover{border-color:var(--danger);color:var(--danger)}
+#btnDisconnect:hover{border-color:var(--danger);color:var(--danger);background:#fee2e2}
 
 /* Nav - Desktop: top bar / Mobile: bottom bar */
 nav{
-  background:rgba(19,31,51,.92);
+  background:rgba(255,255,255,.96);
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   display:flex;
   border-top:1px solid var(--border);
+  box-shadow:0 -1px 3px rgba(0,0,0,.03);
   flex-shrink:0;
   overflow-x:auto;
   z-index:100;
@@ -128,6 +135,7 @@ nav button{
   color:var(--text2);
   padding:.6rem 1rem;
   font-size:.78rem;
+  font-weight:500;
   cursor:pointer;
   white-space:nowrap;
   border-bottom:2px solid transparent;
@@ -140,6 +148,7 @@ nav button:hover{color:var(--text)}
 nav button.active{
   color:var(--accent);
   border-bottom-color:var(--accent);
+  font-weight:600;
 }
 
 /* Main */
@@ -162,20 +171,20 @@ main{
   padding:.5rem .9rem;
   border-radius:var(--radius-sm);
   font-size:.78rem;
+  font-weight:500;
   cursor:pointer;
   min-height:var(--tap);
   transition:.2s;
 }
 .subnav button.active{
   background:var(--accent);
-  color:#000;
+  color:#fff;
   border-color:var(--accent);
-}
-
+  box-shadow:0 2px 8px rgba(0,90,180,.25);
 /* Login overlay */
 .login-overlay{
   position:fixed;inset:0;
-  background:linear-gradient(180deg,#0a1628,#0e1c30);
+  background:linear-gradient(180deg,#f9f9ff,#ebedf7);
   z-index:999;
   display:flex;
   align-items:center;
@@ -183,7 +192,7 @@ main{
   padding:1rem;
 }
 .login-box{
-  background:var(--card);
+  background:#ffffff;
   border:1px solid var(--border);
   border-radius:var(--radius);
   padding:1.8rem;
@@ -192,15 +201,12 @@ main{
   box-shadow:var(--shadow-lg);
 }
 .login-box h2{
-  background:var(--accent-grad);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text;
+  color:var(--accent);
   margin-bottom:1.2rem;
   text-align:center;
   font-size:1.3rem;
-  font-weight:800;
-  letter-spacing:1px;
+  font-weight:700;
+  letter-spacing:.5px;
 }
 .login-box label{
   display:block;
@@ -209,6 +215,7 @@ main{
   color:var(--text2);
   text-transform:uppercase;
   letter-spacing:.5px;
+  font-weight:600;
 }
 .login-box input,.login-box select{
   width:100%;
@@ -223,21 +230,22 @@ main{
   outline:none;
   transition:.2s;
 }
-.login-box input:focus,.login-box select:focus{border-color:var(--accent)}
-.login-box select option{background:var(--card);color:var(--text)}
+.login-box input:focus,.login-box select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,90,180,.1)}
+.login-box select option{background:#ffffff;color:var(--text)}
 .login-box button{
   width:100%;
   height:var(--tap);
-  background:var(--accent-grad);
-  color:#000;
+  background:var(--accent);
+  color:#ffffff;
   border:none;
   border-radius:var(--radius-sm);
   font-size:.9rem;
-  font-weight:700;
+  font-weight:600;
   cursor:pointer;
   transition:.2s;
+  box-shadow:0 2px 8px rgba(0,90,180,.2);
 }
-.login-box button:hover{opacity:.88;transform:translateY(-1px)}
+.login-box button:hover{background:var(--accent-dark);transform:translateY(-1px)}
 .login-box .err{color:var(--danger);font-size:.78rem;margin-bottom:.6rem;display:none}
 .login-box textarea{
   width:100%;
@@ -249,25 +257,26 @@ main{
   font-size:.75rem;
   margin-bottom:.5rem;
   outline:none;
-  font-family:monospace;
+  font-family:'JetBrains Mono',monospace;
   resize:vertical;
   min-height:54px;
 }
-.login-box textarea:focus{border-color:var(--accent)}
+.login-box textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,90,180,.1)}
 .login-box .accent{
-  background:var(--accent-grad);
-  color:#000;
+  background:var(--accent);
+  color:#ffffff;
   border:none;
   border-radius:var(--radius-sm);
   height:var(--tap);
   width:100%;
   font-size:.85rem;
-  font-weight:700;
+  font-weight:600;
   cursor:pointer;
   transition:.2s;
   margin-bottom:.2rem;
+  box-shadow:0 2px 8px rgba(0,90,180,.2);
 }
-.login-box .accent:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.login-box .accent:hover{background:var(--accent-dark);transform:translateY(-1px)}
 .login-box .row{display:flex;gap:.5rem;align-items:center}
 .login-box .row .btn{
   width:auto;
@@ -343,22 +352,22 @@ main{
   width:100%;
   margin:.8rem 0;
   padding:1rem;
-  background:var(--accent-grad);
-  color:#000;
+  background:var(--accent);
+  color:#ffffff;
   border:none;
   border-radius:var(--radius);
   font-size:1.05rem;
-  font-weight:800;
+  font-weight:700;
   cursor:pointer;
   transition:.15s;
   text-transform:uppercase;
-  letter-spacing:2px;
-  box-shadow:0 4px 20px rgba(0,212,255,.25);
+  letter-spacing:1px;
+  box-shadow:0 4px 14px rgba(0,90,180,.25);
   min-height:var(--tap);
 }
-.big-btn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,212,255,.3)}
-.big-btn:active{transform:scale(.98);filter:brightness(.95)}
-.big-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;filter:none;box-shadow:none}
+.big-btn:hover{background:var(--accent-dark);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,90,180,.3)}
+.big-btn:active{transform:scale(.98)}
+.big-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* Buttons */
 .btn{
@@ -366,37 +375,40 @@ main{
   padding:0 1rem;
   border:1px solid var(--border);
   background:var(--card);
-  color:var(--text2);
+  color:var(--text);
   border-radius:var(--radius-sm);
   cursor:pointer;
   font-size:.78rem;
+  font-weight:500;
   transition:.2s;
   white-space:nowrap;
   display:inline-flex;
   align-items:center;
   justify-content:center;
 }
-.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:#f1f3fc}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn.danger{border-color:var(--danger);color:var(--danger)}
 .btn.danger:hover{background:var(--danger);color:#fff}
 .btn.accent{
-  background:var(--accent-grad);
-  color:#000;
+  background:var(--accent);
+  color:#ffffff;
   border-color:transparent;
-  font-weight:700;
+  font-weight:600;
+  box-shadow:0 2px 8px rgba(0,90,180,.2);
 }
-.btn.accent:hover{filter:brightness(1.1)}
+.btn.accent:hover{background:var(--accent-dark);color:#fff}
 .btn.small{height:36px;padding:0 .6rem;font-size:.72rem}
 .btn-row{display:flex;gap:.5rem;flex-wrap:wrap;margin:.7rem 0}
 
 /* Cards */
 .card{
-  background:linear-gradient(135deg,var(--card) 0%,var(--card2) 100%);
+  background:#ffffff;
   border:1px solid var(--border);
   border-radius:var(--radius);
   padding:.9rem;
   margin-bottom:.8rem;
+  box-shadow:var(--shadow);
 }
 .card h3{
   color:var(--accent);
@@ -419,13 +431,14 @@ th{
   text-transform:uppercase;
   letter-spacing:.5px;
   font-weight:600;
+  background:#f8faff;
 }
 td{
   padding:.4rem .4rem;
-  border-bottom:1px solid rgba(30,51,72,.4);
+  border-bottom:1px solid #ebedf7;
   vertical-align:middle;
 }
-tr:hover td{background:rgba(0,212,255,.03)}
+tr:hover td{background:#f1f3fc}
 
 /* Forms */
 .filter-bar{display:flex;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap}
@@ -615,18 +628,20 @@ tr:hover td{background:rgba(0,212,255,.03)}
     border-top:1px solid var(--border);
     justify-content:space-around;
     padding-bottom:env(safe-area-inset-bottom,0);
-    background:rgba(10,22,40,.96);
+    background:rgba(255,255,255,.97);
     backdrop-filter:blur(16px);
     -webkit-backdrop-filter:blur(16px);
     z-index:200;
     overflow-x:hidden;
+    box-shadow:0 -2px 10px rgba(0,0,0,.04);
   }
   nav button{
     flex:1;
     border-bottom:none;
     font-size:.65rem;
     padding:.6rem .2rem;
-    opacity:.45;
+    color:var(--text2);
+    font-weight:500;
     display:flex;
     flex-direction:column;
     align-items:center;
@@ -635,9 +650,9 @@ tr:hover td{background:rgba(0,212,255,.03)}
     min-height:52px;
   }
   nav button.active{
-    opacity:1;
     color:var(--accent);
-    background:rgba(0,212,255,.06);
+    background:rgba(0,90,180,.06);
+    font-weight:600;
   }
   nav button.active::after{
     content:"";
@@ -729,16 +744,37 @@ tr:hover td{background:rgba(0,212,255,.03)}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
-    <h2>XSMART KEYPRO Master</h2>
+    <h2>GEYLCA Master</h2>
     <div id="loginErr" class="err"></div>
 
     <div id="passView">
-      <p id="passModeText" style="font-size:.8rem;opacity:.8;margin-bottom:.8rem"></p>
+      <p id="passModeText" style="font-size:.82rem;color:var(--text2);margin-bottom:.8rem;line-height:1.4"></p>
       <label for="masterPassInput">Clave de esta app</label>
-      <input id="masterPassInput" type="password" placeholder="Clave" autocomplete="off">
-      <button id="btnSetPass" style="display:none">Crear clave</button>
-      <button id="btnUnlock" style="display:none">Desbloquear</button>
-      <button id="btnBioUnlock" style="display:none;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#000">&#128274; Desbloquear con huella</button>
+      <div style="position:relative;margin-bottom:.7rem">
+        <input id="masterPassInput" type="password" placeholder="Ingrese su clave" autocomplete="current-password" style="margin-bottom:0;padding-right:42px">
+        <button type="button" id="btnTogglePassVisibility" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;width:30px;height:30px;padding:0;font-size:1.1rem;display:flex;align-items:center;justify-content:center" title="Mostrar/ocultar clave">&#128065;</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
+        <input type="checkbox" id="chkRememberPass" checked style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
+        <label for="chkRememberPass" style="font-size:.78rem;cursor:pointer;text-transform:none;letter-spacing:normal;font-weight:500;margin:0;color:var(--text)">
+          Recordar clave e iniciar automáticamente
+        </label>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:.5rem">
+        <button id="btnPrimaryLogin" type="button" class="btn accent" style="width:100%;height:46px;font-size:.9rem;font-weight:700">
+          Iniciar Sesión
+        </button>
+        <button id="btnSavePass" type="button" class="btn" style="width:100%;height:38px;font-size:.78rem;font-weight:600;background:#f1f3fc;border:1px solid var(--border);color:var(--accent)">
+          &#128190; Guardar clave en este dispositivo
+        </button>
+        <button id="btnBioUnlock" type="button" style="display:none;background:var(--accent);border:none;color:#fff;margin-top:.3rem">&#128274; Desbloquear con huella</button>
+        <a href="javascript:void(0)" id="lnkForgetPass" style="display:none;font-size:.75rem;color:var(--danger);text-align:center;margin-top:.4rem;text-decoration:underline">Olvidar clave guardada en este dispositivo</a>
+      </div>
+
+      <button id="btnSetPass" style="display:none"></button>
+      <button id="btnUnlock" style="display:none"></button>
     </div>
 
     <div id="moduleView" style="display:none">
@@ -751,7 +787,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
       <div id="moduleAddArea" style="display:none">
         <label for="moduleAddRaw">Data Cruda del módulo</label>
         <textarea id="moduleAddRaw" rows="3" placeholder='{"device_id":"mod_...","secret":"..."}'></textarea>
-        <button id="btnScanQrAdd" class="btn" style="width:100%;margin:0 0 .7rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;border:none">&#128247; Escanear QR de emparejamiento</button>
+        <button id="btnScanQrAdd" class="btn" style="width:100%;margin:0 0 .7rem;background:var(--accent);color:#fff;border:none">&#128247; Escanear QR de emparejamiento</button>
         <input type="file" id="fileQrAdd" accept="image/*" style="display:none">
         <div class="row" style="justify-content:flex-end">
           <button class="btn" id="btnModuleAddCancel">Cancelar</button>
@@ -1027,7 +1063,7 @@ tr:hover td{background:rgba(0,212,255,.03)}
     <div id="tabConsole" class="tab">
       <div class="card">
         <h3>Datos en Vivo (MQTT)</h3>
-        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo XSMART KEYPRO. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
+        <p style="font-size:.78rem;opacity:.7;margin-bottom:.6rem">Todo el tráfico TX/RX hacia el módulo GEYLCA. Si el módulo responde con un error, lo verá aquí en JSON crudo.</p>
         <div class="console-toolbar">
           <label class="console-chk"><input type="checkbox" id="consoleFollow" checked> Auto-seguir</label>
           <button class="btn small" id="btnConsoleClear">Limpiar</button>
@@ -1414,14 +1450,14 @@ function renderProgList(){
     const sel=selectedProgId===id;
     const badge=online?'<span class="status-tag success">EN LÍNEA</span>':'<span class="status-tag">OFFLINE</span>';
     const btn=online
-      ? '<button class="btn small '+(sel?"":"")+'" onclick="XSMART KEYPRO.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
+      ? '<button class="btn small '+(sel?"":"")+'" onclick="GEYLCA.selectProg(\''+id+'\')">'+(sel?"Seleccionado ✓":"Seleccionar")+'</button>'
       : '<button class="btn small" disabled>Fuera de línea</button>';
     return "<tr><td><b>"+escHtml(id)+"</b><div style=\"font-size:.72rem;opacity:.6\">"+escHtml(p?p.name:"")+"</div></td><td>"+badge+"</td><td>"+btn+"</td></tr>";
   }).join("");
   if(info)info.textContent=onlineCount+" programador(es) en línea";
 }
-window.XSMART KEYPRO=window.XSMART KEYPRO||{};
-window.XSMART KEYPRO.selectProg=function(id){
+window.GEYLCA=window.GEYLCA||{};
+window.GEYLCA.selectProg=function(id){
   selectedProgId=id;
   pendingProgKey="";
   document.getElementById("progReadBox").style.display="block";
@@ -1429,7 +1465,7 @@ window.XSMART KEYPRO.selectProg=function(id){
   if(stEl)stEl.innerHTML="Programador <b>"+escHtml(id)+"</b> seleccionado. Pulse <b>Leer Llave</b> y presente la iButton en el programador.";
   renderProgList();
 };
-window.XSMART KEYPRO.iniciarLectura=function(){
+window.GEYLCA.iniciarLectura=function(){
   if(!selectedProgId){toast("Seleccione primero un programador","error");return;}
   if(!progStatus[selectedProgId]||!progStatus[selectedProgId].online){toast("El programador no está en línea","error");return;}
   pendingProgKey="";
@@ -1488,9 +1524,9 @@ function renderSlots(){
         badgeHtml="<span class=\"status-tag "+(suspended?"suspended":"active")+"\">"+(suspended?"Suspendida":"Activa")+"</span>";
       }
       const actBtn=blocked
-        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"XSMART KEYPRO.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
-        : "<button class=\"btn small \" onclick=\"XSMART KEYPRO.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
-      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"XSMART KEYPRO.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"XSMART KEYPRO.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
+        ? (canDo("unblock_slot")?"<button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\">Desbloquear</button>":"<button class=\"btn small\" disabled>Bloqueada</button>")
+        : "<button class=\"btn small \" onclick=\"GEYLCA.toggleSlot("+k+")\""+togDis+">"+(suspended?"Activar":"Suspender")+"</button>";
+      return "<tr><td data-label=\"Slot\">"+k+"</td><td data-label=\"Key\" style=\"font-family:monospace;font-size:.78rem\">"+escHtml(d.key||"--")+"</td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Estado\">"+badgeHtml+"</td><td data-label=\"Acciones\">"+actBtn+" <button class=\"btn small\" onclick=\"GEYLCA.editApto("+k+")\""+aptDis+">Apto</button> <button class=\"btn small danger\" onclick=\"GEYLCA.deleteSlot("+k+")\""+delDis+">Del</button></td></tr>";
     }).join("");
   }
   document.getElementById("slotPageInfo").textContent="Página "+slotPage+" / "+totalPages+" ("+filtered.length+" slots)";
@@ -1578,7 +1614,7 @@ function processEvent(msg){
     document.getElementById("learnWaitBox").innerHTML="<span>Código de la llave detectada:</span><div style=\"font-family:monospace;font-size:1.15rem;font-weight:bold;letter-spacing:.12em;word-break:break-all\">"+escHtml(pendingScanKey)+"</div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Slot deseado (vacío = automático)</label><input id=\"scanSlotInput\" type=\"number\" min=\"1\" max=\""+(slotTotalKnown||4000)+"\" value=\""+(pendingScanSlot!==null?pendingScanSlot:"")+"\"></div>"+
       "<div class=\"field\" style=\"margin:.4rem 0 0\"><label>Nº de apartamento</label><input id=\"scanAptoInput\" type=\"text\" value=\""+escHtml(d.apto||"")+"\" placeholder=\"Ej: 4B\"></div>"+
-      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"XSMART KEYPRO.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"XSMART KEYPRO.cancelScan()\">Cancelar</button></div>";
+      "<div class=\"btn-row\" style=\"margin-top:.6rem\"><button class=\"btn accent\" onclick=\"GEYLCA.confirmScan()\">Confirmar y grabar</button> <button class=\"btn\" onclick=\"GEYLCA.cancelScan()\">Cancelar</button></div>";
     toast("Llave escaneada — asigne slot y apto, luego confirme","info");
     return;
   }
@@ -1807,56 +1843,98 @@ function passHash(salt,pass){
   return sha256(strBytes(salt+"|"+pass));
 }
 
+let manualDisconnect = false;
+
 function initMasterFlow(){
   const info=getPassInfo();
   const bt=document.getElementById("passModeText");
   const inp=document.getElementById("masterPassInput");
-  const setBtn=document.getElementById("btnSetPass");
-  const unlBtn=document.getElementById("btnUnlock");
-  inp.value="";
+  const primaryBtn=document.getElementById("btnPrimaryLogin");
+  const chk=document.getElementById("chkRememberPass");
+  const lnkForget=document.getElementById("lnkForgetPass");
+  const saved=localStorage.getItem("geylca_saved_masterpass");
+  if(saved){
+    inp.value=saved;
+    if(chk) chk.checked=true;
+    if(lnkForget) lnkForget.style.display="block";
+  }else{
+    inp.value="";
+    if(chk) chk.checked=true;
+    if(lnkForget) lnkForget.style.display="none";
+  }
   if(info&&info.salt&&info.hash){
     bt.textContent="Ingrese la clave de esta app para continuar.";
-    setBtn.style.display="none";
-    unlBtn.style.display="";
+    if(primaryBtn) primaryBtn.textContent="Desbloquear";
     setLoginView("pass");
+
+    // Si hay clave guardada y coincide, iniciar sesión automáticamente para próximos inicios
+    if(!manualDisconnect && saved && passHash(info.salt,saved)===info.hash){
+      console.log("[Auth] Clave guardada validada. Autologin activo.");
+      showModuleSelect();
+      return;
+    }
     scheduleBioUnlockCheck();
   }else{
-    bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. La clave no se sube a ningún servidor.";
-    setBtn.style.display="";
-    unlBtn.style.display="none";
+    bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. Se guardará localmente.";
+    if(primaryBtn) primaryBtn.textContent="Guardar clave y Entrar";
     setLoginView("pass");
-    document.getElementById("btnBioUnlock").style.display="none";
+    const bioBtn=document.getElementById("btnBioUnlock");
+    if(bioBtn) bioBtn.style.display="none";
   }
+  manualDisconnect = false;
 }
 
-function createPass(){
-  const v=document.getElementById("masterPassInput").value;
+function handleLoginOrSave(forceSave){
+  const inp=document.getElementById("masterPassInput");
+  const v=(inp.value||"").trim();
   const errEl=document.getElementById("loginErr");
-  if(!v||v.length<4){errEl.textContent="La clave debe tener al menos 4 caracteres.";errEl.style.display="block";return;}
-  const salt=randKey(24);
-  localStorage.setItem("geylca_masterpass",JSON.stringify({salt:salt,hash:passHash(salt,v)}));
-  saveBioSecret(v);
-  errEl.style.display="none";
-  document.getElementById("masterPassInput").value="";
-  toast("Clave creada. Bienvenido a XSMART KEYPRO Master.","success");
-  showModuleSelect();
-}
+  const chk=document.getElementById("chkRememberPass");
+  const lnkForget=document.getElementById("lnkForgetPass");
+  const shouldSave=forceSave || (chk && chk.checked);
 
-function unlockApp(){
-  const v=document.getElementById("masterPassInput").value;
-  const info=getPassInfo();
-  const errEl=document.getElementById("loginErr");
-  if(!info||!info.salt||!info.hash){errEl.textContent="No hay clave configurada.";errEl.style.display="block";return;}
-  if(passHash(info.salt,v)!==info.hash){
-    errEl.textContent="Clave incorrecta. Inténtelo de nuevo.";
+  if(!v||v.length<4){
+    errEl.textContent="La clave debe tener al menos 4 caracteres.";
     errEl.style.display="block";
     return;
   }
+
+  let info=getPassInfo();
+  if(!info||!info.salt||!info.hash){
+    // Creando clave maestra en primera ejecución
+    const salt=randKey(24);
+    info={salt:salt,hash:passHash(salt,v)};
+    localStorage.setItem("geylca_masterpass",JSON.stringify(info));
+    saveBioSecret(v);
+  }else{
+    // Verificando clave existente
+    if(passHash(info.salt,v)!==info.hash){
+      errEl.textContent="Clave incorrecta. Inténtelo de nuevo.";
+      errEl.style.display="block";
+      return;
+    }
+    saveBioSecret(v);
+  }
+
+  if(shouldSave){
+    localStorage.setItem("geylca_saved_masterpass",v);
+    if(chk) chk.checked=true;
+    if(lnkForget) lnkForget.style.display="block";
+  }else{
+    localStorage.removeItem("geylca_saved_masterpass");
+    if(lnkForget) lnkForget.style.display="none";
+  }
+
   errEl.style.display="none";
-  saveBioSecret(v);
-  document.getElementById("masterPassInput").value="";
-  toast("Desbloqueado.","success");
+  toast(shouldSave ? "Clave guardada para próximos inicios." : "Sesión iniciada.","success");
   showModuleSelect();
+}
+
+function createPass(){
+  handleLoginOrSave(true);
+}
+
+function unlockApp(){
+  handleLoginOrSave(true);
 }
 
 function showModuleSelect(){
@@ -1878,7 +1956,7 @@ function renderModuleSelect(){
   infoEl.textContent="Seleccione el módulo a leer/operar:";
   listEl.innerHTML=masterModules.map((m,i)=>
     '<div class="module-row"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.9rem">'+escHtml(m.alias||m.deviceId)+'</div><div class="master-cell-id">'+escHtml(m.deviceId)+'</div></div>'+
-    '<button class="btn accent" onclick="XSMART KEYPRO.selectModule('+i+')">Operar</button></div>'
+    '<button class="btn accent" onclick="GEYLCA.selectModule('+i+')">Operar</button></div>'
   ).join("");
 }
 
@@ -2029,22 +2107,8 @@ function disconnectMaster(){
   renderEvents();renderLogs();
   document.getElementById("appContainer").style.display="none";
   document.getElementById("loginOverlay").style.display="flex";
-  const info=getPassInfo();
-  const bt=document.getElementById("passModeText");
-  const inp=document.getElementById("masterPassInput");
-  const setBtn=document.getElementById("btnSetPass");
-  const unlBtn=document.getElementById("btnUnlock");
-  inp.value="";
-  if(info&&info.salt&&info.hash){
-    bt.textContent="Ingrese la clave de esta app para continuar.";
-    setBtn.style.display="none";
-    unlBtn.style.display="";
-  }else{
-    bt.textContent="Bienvenido. Cree la clave con la que desbloqueará esta app en este dispositivo. La clave no se sube a ningún servidor.";
-    setBtn.style.display="";
-    unlBtn.style.display="none";
-  }
-  setLoginView("pass");
+  manualDisconnect = true;
+  initMasterFlow();
 }
 
 function showSlotsSub(name){
@@ -2070,8 +2134,8 @@ function restoreSession(){
   initMasterFlow();
 }
 
-window.XSMART KEYPRO=window.XSMART KEYPRO||{};
-window.XSMART KEYPRO.confirmScan=function(){
+window.GEYLCA=window.GEYLCA||{};
+window.GEYLCA.confirmScan=function(){
   if(!canDo("confirm_key"))return;
   const extra={};
   const sEl=document.getElementById("scanSlotInput");
@@ -2086,32 +2150,32 @@ window.XSMART KEYPRO.confirmScan=function(){
   setWaiting(true);
   toast("Confirmando grabación de la llave...","info");
 };
-window.XSMART KEYPRO.cancelScan=function(){
+window.GEYLCA.cancelScan=function(){
   if(!canDo("cancel_learn"))return;
   makeMsg("cancel_learn").then(m=>publish(m));
   document.getElementById("learnWaitBox").style.display="none";
   toast("Aprendizaje cancelado","info");
 };
-window.XSMART KEYPRO.toggleSlot=function(slot){
+window.GEYLCA.toggleSlot=function(slot){
   const d=slotData[slot];if(!d)return;
   const newStatus=d.status==="suspended"?"active":"suspended";
   makeMsg("suspend_slot",{slot:slot,status:newStatus}).then(m=>publish(m));
   setWaiting(true);
 };
-window.XSMART KEYPRO.editApto=function(slot){
+window.GEYLCA.editApto=function(slot){
   const d=slotData[slot];if(!d)return;
   const val=prompt("Nº de apartamento para slot #"+slot,d.aparto||"");
   if(val===null)return;
   makeMsg("set_apto",{slot:slot,apto:val.trim()}).then(m=>publish(m));
   setWaiting(true);
 };
-window.XSMART KEYPRO.deleteSlot=function(slot){
+window.GEYLCA.deleteSlot=function(slot){
   showModal("Eliminar Slot","¿Eliminar el slot #"+slot+"? Esta acción no se puede deshacer.",()=>{
     makeMsg("clear_slot",{slot:slot}).then(m=>publish(m));
     setWaiting(true);
   },"Eliminar");
 };
-window.XSMART KEYPRO.unblockSlot=function(slot){
+window.GEYLCA.unblockSlot=function(slot){
   if(!canDo("unblock_slot"))return;
   showModal("Desbloquear Slot","¿Desbloquear el slot #"+slot+"? El admin quita la suspensión permanente y la llave vuelve a operar.",()=>{
     makeMsg("unblock_slot",{slot:slot}).then(m=>publish(m));
@@ -2144,7 +2208,7 @@ function renderBlocked(){
   const unDis=canDo("unblock_slot")?"":" disabled";
   if(tb)tb.innerHTML=bl.map(k=>{
     const d=slotData[k];
-    return "<tr><td data-label=\"Slot\"><b>"+k+"</b></td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Motivo\">"+escHtml(reasonLabel(d.blk))+"</td><td data-label=\"Fecha\">"+escHtml(formatDateTime(d.blkts))+"</td><td data-label=\"Acciones\"><button class=\"btn small accent\" onclick=\"XSMART KEYPRO.unblockSlot("+k+")\""+unDis+">Desbloquear</button></td></tr>";
+    return "<tr><td data-label=\"Slot\"><b>"+k+"</b></td><td data-label=\"Apto\">"+escHtml(d.aparto||"--")+"</td><td data-label=\"Motivo\">"+escHtml(reasonLabel(d.blk))+"</td><td data-label=\"Fecha\">"+escHtml(formatDateTime(d.blkts))+"</td><td data-label=\"Acciones\"><button class=\"btn small accent\" onclick=\"GEYLCA.unblockSlot("+k+")\""+unDis+">Desbloquear</button></td></tr>";
   }).join("");
 }
 function refreshBlocked(){
@@ -2329,7 +2393,7 @@ function masterModal(title,fields,onOk,okLabel){
   fields.forEach(f=>{
     if(f.type==="hidden"){html+='<input type="hidden" id="mm_'+escHtml(f.id)+'" value="'+escHtml(f.value||"")+'">';return;}
     if(f.type==="scan"){
-      html+='<button type="button" class="btn" id="mm_scan_'+escHtml(f.id)+'" style="width:100%;margin-bottom:.6rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;border:none">&#128247; Escanear QR de emparejamiento</button>'+
+      html+='<button type="button" class="btn" id="mm_scan_'+escHtml(f.id)+'" style="width:100%;margin-bottom:.6rem;background:var(--accent);color:#fff;border:none">&#128247; Escanear QR de emparejamiento</button>'+
         '<input type="file" id="mm_file_'+escHtml(f.id)+'" accept="image/*" style="display:none">';
       return;
     }
@@ -2381,16 +2445,16 @@ function renderMaster(){
       '<td>'+freeP+extraP+'</td>'+
       '<td style="max-width:220px">'+last+'</td>'+
       '<td><div class="master-actions">'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'open\')">Abrir</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'free\')">Libres</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'slots\')">Llaves</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'logs\')">Logs</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'info\')">Info</button>'+
-        '<button class="btn accent" onclick="XSMART KEYPRO.masterAct('+i+',\'ota\')">OTA</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'role\')">Rol</button>'+
-        '<button class="btn" onclick="XSMART KEYPRO.masterAct('+i+',\'reset\')">Reset</button>'+
-        '<button class="btn danger" onclick="XSMART KEYPRO.masterAct('+i+',\'wipe\')">Wipe</button>'+
-        '<button class="btn danger" title="Quitar del registro" onclick="XSMART KEYPRO.masterAct('+i+',\'remove\')">X</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'open\')">Abrir</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'free\')">Libres</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'slots\')">Llaves</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'logs\')">Logs</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'info\')">Info</button>'+
+        '<button class="btn accent" onclick="GEYLCA.masterAct('+i+',\'ota\')">OTA</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'role\')">Rol</button>'+
+        '<button class="btn" onclick="GEYLCA.masterAct('+i+',\'reset\')">Reset</button>'+
+        '<button class="btn danger" onclick="GEYLCA.masterAct('+i+',\'wipe\')">Wipe</button>'+
+        '<button class="btn danger" title="Quitar del registro" onclick="GEYLCA.masterAct('+i+',\'remove\')">X</button>'+
       '</div></td></tr>';
   }).join("");
 }
@@ -2535,13 +2599,41 @@ function handleMasterMessage(devT,suffix,payload){
   }
   renderMaster();
 }
-window.XSMART KEYPRO.masterAct=masterAct;
-window.XSMART KEYPRO.masterAdd=masterAdd;
-window.XSMART KEYPRO.selectModule=activateModule;
+window.GEYLCA.masterAct=masterAct;
+window.GEYLCA.masterAdd=masterAdd;
+window.GEYLCA.selectModule=activateModule;
 
 function initEvents(){
   document.getElementById("btnSetPass").addEventListener("click",createPass);
   document.getElementById("btnUnlock").addEventListener("click",unlockApp);
+  const primaryLoginBtn = document.getElementById("btnPrimaryLogin");
+  if(primaryLoginBtn){
+    primaryLoginBtn.addEventListener("click",()=>{ handleLoginOrSave(true); });
+  }
+  const btnSave = document.getElementById("btnSavePass");
+  if(btnSave){
+    btnSave.addEventListener("click",()=>{ handleLoginOrSave(true); });
+  }
+  const chkRem = document.getElementById("chkRememberPass");
+  if(chkRem){
+    chkRem.addEventListener("change",()=>{
+      if(!chkRem.checked){
+        localStorage.removeItem("geylca_saved_masterpass");
+      }else{
+        const v = document.getElementById("masterPassInput").value;
+        if(v && v.length >= 4) localStorage.setItem("geylca_saved_masterpass", v);
+      }
+    });
+  }
+  const btnTog = document.getElementById("btnTogglePassVisibility");
+  if(btnTog){
+    btnTog.addEventListener("click",()=>{
+      const inp = document.getElementById("masterPassInput");
+      const isPass = inp.type === "password";
+      inp.type = isPass ? "text" : "password";
+      btnTog.innerHTML = isPass ? "&#128584;" : "&#128065;";
+    });
+  }
   document.getElementById("masterPassInput").addEventListener("keydown",e=>{
     if(e.key!=="Enter")return;
     const info=getPassInfo();
@@ -2625,7 +2717,7 @@ function initEvents(){
     scanProgramadores();
     toast("Escaneo de programadores completado","info");
   });
-  document.getElementById("btnProgRead").addEventListener("click",()=>XSMART KEYPRO.iniciarLectura());
+  document.getElementById("btnProgRead").addEventListener("click",()=>GEYLCA.iniciarLectura());
   document.querySelectorAll(".subnav button").forEach(btn=>{
     btn.addEventListener("click",()=>showSlotsSub(btn.dataset.sub));
   });
