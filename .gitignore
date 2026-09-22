@@ -19,3 +19,7 @@ PROGRAMADOR INALAMBRICO V1.0/
 qrs/
 tools/__pycache__/
 *.pyc
+# Generated locally for Supabase Edge Function configuration. Never commit a
+# command-signing private key or device provisioning export.
+command-signing*.json
+device-provisioning*.json
